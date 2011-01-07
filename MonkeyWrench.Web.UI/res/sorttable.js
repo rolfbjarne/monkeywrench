@@ -170,7 +170,7 @@ guessType: function(table, column) {
 	for (var i=0; i<table.tBodies[0].rows.length; i++) {
 	text = sorttable.getInnerText(table.tBodies[0].rows[i].cells[column]);
 	if (text != '') {
-		if (text.match(/^[\d]+[.][\d]+[.][\d]+[.][\d]+$)) {
+		if (text.match(/^[\d]+[.][\d]+[.][\d]+[.][\d]+$/)) {
 		return sort.sort_alpha;
 		}
 		if (text.match(/^-?[�$�]?[\d,.]+%?$/)) {
