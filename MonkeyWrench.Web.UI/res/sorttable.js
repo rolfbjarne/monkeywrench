@@ -171,7 +171,7 @@ guessType: function(table, column) {
 	text = sorttable.getInnerText(table.tBodies[0].rows[i].cells[column]);
 	if (text != '') {
 		if (text.match(/^[\d]+[.][\d]+[.][\d]+[.][\d]+$/)) {
-		return sort.sort_alpha;
+		return sorttable.sort_alpha;
 		}
 		if (text.match(/^-?[�$�]?[\d,.]+%?$/)) {
 		return sorttable.sort_numeric;
