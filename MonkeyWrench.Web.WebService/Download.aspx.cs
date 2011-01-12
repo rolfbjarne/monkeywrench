@@ -46,7 +46,8 @@ namespace MonkeyWrench.WebServices
 				} else {
 					throw new HttpException (404, "Nothing to download.");
 				}
-
+			} catch (HttpException hex) {
+				Response.StatusCode = hex.GetHttpCode ();
 			} catch (Exception ex) {
 				Logger.Log ("Download failed: {0}", ex);
 				throw;
