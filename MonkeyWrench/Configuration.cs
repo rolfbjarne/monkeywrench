@@ -44,6 +44,7 @@ namespace MonkeyWrench
 		public static string SiteSkin = "";
 		public static int UploadPort = 0; // default = 0 (any port)
 		public static int LogVerbosity = 1; // 0: quiet, 1: some messages, 2: verbose (default: 1)
+		public static string IRCLocalEndPoint = string.Empty;
 
 		//the following are used by the database manager.
 		public static bool CleanLargeObjects;
@@ -175,6 +176,7 @@ namespace MonkeyWrench
 				LogVerbosity = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/LogVerbosity").GetNodeValue (LogVerbosity.ToString ()));
 				SiteSkin = xml.SelectSingleNode ("MonkeyWrench/Configuration/SiteSkin").GetNodeValue (SiteSkin);
 				UploadPort = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/UploadPort").GetNodeValue (UploadPort.ToString ()));
+				IRCLocalEndPoint = xml.SelectSingleNode ("MonkeyWrench/Configuration/IRCLocalEndPoint").GetNodeValue (IRCLocalEndPoint);
 
 				// override from command line
 
@@ -202,6 +204,7 @@ namespace MonkeyWrench
 					{"logverbosity=", v => LogVerbosity = int.Parse (v.Trim ())},
 					{"siteskin=", v => SiteSkin = v},
 					{"uploadport=", v => UploadPort = int.Parse (v.Trim ())},
+					{"irclocalendpoint=", v => IRCLocalEndPoint = v},
 
 					// values for the database manager
 					{"compress-files", v => CompressFiles = true},

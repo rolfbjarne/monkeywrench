@@ -379,6 +379,7 @@ LIMIT 1
 				string [] servers;
 				string [] channels;
 				string [] nicks;
+				System.Net.IPEndPoint local_endpoint;
 
 				servers = identity.servers.Split (',', ' ');
 				channels = identity.channels.Split (',', ' ');
@@ -393,7 +394,14 @@ LIMIT 1
 				irc.OnConnected += new EventHandler (irc_OnConnected);
 				irc.OnDisconnected += new EventHandler (irc_OnDisconnected);
 				irc.OnRawMessage += new IrcEventHandler (irc_OnRawMessage);
-				irc.Connect (servers, 6667);
+
+				if (string.IsNullOrEmpty (Configuration.IRCLocalEndPoint)) {
+					local_endpoint = null;
+				} else {
+					local_endpoint = new System.Net.IPEndPoint (System.Net.IPAddress.Parse (Configuration.IRCLocalEndPoint), 0);
+				}
+
+				irc.Connect (servers, 6667, local_endpoint);
 				irc.Login (nicks, "MonkeyWrench");
 				irc.RfcJoin (channels);
 				Logger.Log ("Connected to irc: {0} joined {1} as {2}", identity.servers, identity.channels, identity.nicks);

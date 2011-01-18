@@ -423,7 +423,7 @@ namespace Meebey.SmartIrc4net
         public new void Connect(string[] addresslist, int port)
         {
             _SupportNonRfcLocked = true;
-            base.Connect(addresslist, port);
+            base.Connect(addresslist, port, null);
         }
         
         /// <overloads>

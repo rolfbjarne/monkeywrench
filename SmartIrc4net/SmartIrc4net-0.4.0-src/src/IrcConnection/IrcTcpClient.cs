@@ -41,5 +41,15 @@ namespace Meebey.SmartIrc4net
                 return Client;
             }
         }
+		
+        public IrcTcpClient (System.Net.IPEndPoint local_endpoint)
+		    : base (local_endpoint)
+        {
+        }
+
+        public IrcTcpClient ()
+            : base ()
+        {
+        }
     }
 }

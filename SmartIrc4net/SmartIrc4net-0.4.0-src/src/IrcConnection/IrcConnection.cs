@@ -385,6 +385,10 @@ namespace Meebey.SmartIrc4net
             Logger.Main.Debug("IrcConnection destroyed");
         }
 #endif
+        public void Connect (string [] addresslist, int port)
+        {
+            Connect (addresslist, port, null);
+        }
         
         /// <overloads>this method has 2 overloads</overloads>
         /// <summary>
@@ -395,7 +399,7 @@ namespace Meebey.SmartIrc4net
         /// <param name="port">Portnumber to connect to</param>
         /// <exception cref="CouldNotConnectException">The connection failed</exception>
         /// <exception cref="AlreadyConnectedException">If there is already an active connection</exception>
-        public void Connect(string[] addresslist, int port)
+        public void Connect(string[] addresslist, int port, System.Net.IPEndPoint local_endpoint)
         {
             if (_IsConnected) {
                 throw new AlreadyConnectedException("Already connected to: "+Address+":"+Port);
@@ -413,7 +417,7 @@ namespace Meebey.SmartIrc4net
             }
             try {
                 System.Net.IPAddress ip = System.Net.Dns.Resolve(Address).AddressList[0];
-                _TcpClient = new IrcTcpClient();
+                _TcpClient = local_endpoint == null ? new IrcTcpClient () :  new IrcTcpClient(local_endpoint);
                 _TcpClient.NoDelay = true;
                 _TcpClient.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, 1);
                 // set timeout, after this the connection will be aborted
