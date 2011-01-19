@@ -1419,6 +1419,12 @@ UPDATE Work SET state = @state WHERE Work.revisionwork_id = (SELECT RevisionWork
 		[WebMethod]
 		public GetViewWorkTableDataResponse GetViewWorkTableData (WebServiceLogin login, int? lane_id, string lane, int? host_id, string host, int? command_id, string command)
 		{
+			return GetViewWorkTableData2 (login, lane_id, lane, host_id, host, command_id, command, 0, 250);
+		}
+
+		[WebMethod]
+		public GetViewWorkTableDataResponse GetViewWorkTableData2 (WebServiceLogin login, int? lane_id, string lane, int? host_id, string host, int? command_id, string command, int offset, int limit)
+		{
 			GetViewWorkTableDataResponse response = new GetViewWorkTableDataResponse ();
 
 			using (DB db = new DB ()) {
@@ -1433,11 +1439,13 @@ UPDATE Work SET state = @state WHERE Work.revisionwork_id = (SELECT RevisionWork
 SELECT * 
 FROM WorkView2
 WHERE command_id = @command_id AND masterhost_id = @host_id AND lane_id = @lane_id
-ORDER BY date DESC LIMIT 250;
+ORDER BY date DESC LIMIT @limit OFFSET @offset;
 ";
 					DB.CreateParameter (cmd, "command_id", response.Command.id);
 					DB.CreateParameter (cmd, "host_id", response.Host.id);
 					DB.CreateParameter (cmd, "lane_id", response.Lane.id);
+					DB.CreateParameter (cmd, "offset", offset);
+					DB.CreateParameter (cmd, "limit", limit);
 					using (IDataReader reader = cmd.ExecuteReader ()) {
 						while (reader.Read ())
 							response.WorkViews.Add (new DBWorkView2 (reader));

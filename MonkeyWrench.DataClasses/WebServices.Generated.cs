@@ -1667,6 +1667,42 @@ namespace MonkeyWrench.Web.WebServices {
         }
         
         /// <remarks/>
+        [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/GetViewWorkTableData2", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
+        public GetViewWorkTableDataResponse GetViewWorkTableData2(WebServiceLogin login, [System.Xml.Serialization.XmlElementAttribute(IsNullable=true)] System.Nullable<int> lane_id, string lane, [System.Xml.Serialization.XmlElementAttribute(IsNullable=true)] System.Nullable<int> host_id, string host, [System.Xml.Serialization.XmlElementAttribute(IsNullable=true)] System.Nullable<int> command_id, string command, int offset, int limit) {
+            object[] results = this.Invoke("GetViewWorkTableData2", new object[] {
+                        login,
+                        lane_id,
+                        lane,
+                        host_id,
+                        host,
+                        command_id,
+                        command,
+                        offset,
+                        limit});
+            return ((GetViewWorkTableDataResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        public System.IAsyncResult BeginGetViewWorkTableData2(WebServiceLogin login, System.Nullable<int> lane_id, string lane, System.Nullable<int> host_id, string host, System.Nullable<int> command_id, string command, int offset, int limit, System.AsyncCallback callback, object asyncState) {
+            return this.BeginInvoke("GetViewWorkTableData2", new object[] {
+                        login,
+                        lane_id,
+                        lane,
+                        host_id,
+                        host,
+                        command_id,
+                        command,
+                        offset,
+                        limit}, callback, asyncState);
+        }
+        
+        /// <remarks/>
+        public GetViewWorkTableDataResponse EndGetViewWorkTableData2(System.IAsyncResult asyncResult) {
+            object[] results = this.EndInvoke(asyncResult);
+            return ((GetViewWorkTableDataResponse)(results[0]));
+        }
+        
+        /// <remarks/>
         [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/GetLaneFileForEdit", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
         public GetLaneFileForEditResponse GetLaneFileForEdit(WebServiceLogin login, int lanefile_id) {
             object[] results = this.Invoke("GetLaneFileForEdit", new object[] {

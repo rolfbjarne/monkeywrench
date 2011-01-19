@@ -37,11 +37,18 @@ public partial class ViewWorkTable : System.Web.UI.Page
 			DBLane lane;
 			DBCommand command = null;
 			GetViewWorkTableDataResponse response;
+			int limit;
+			int offset;
 
-			response = Master.WebService.GetViewWorkTableData (Master.WebServiceLogin,
+			if (!int.TryParse (Request ["offset"], out offset))
+				offset = 0;
+			if (!int.TryParse (Request ["limit"], out limit))
+				limit = 250;
+
+			response = Master.WebService.GetViewWorkTableData2 (Master.WebServiceLogin,
 				Utils.TryParseInt32 (Request ["lane_id"]), Request ["lane"],
 				Utils.TryParseInt32 (Request ["host_id"]), Request ["host"],
-				Utils.TryParseInt32 (Request ["command_id"]), Request ["command"]);
+				Utils.TryParseInt32 (Request ["command_id"]), Request ["command"], offset, limit);
 
 			lane = response.Lane;
 			host = response.Host;

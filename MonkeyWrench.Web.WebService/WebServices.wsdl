@@ -243,7 +243,7 @@
               <xs:element minOccurs="0" maxOccurs="1" name="architecture" type="xs:string" />
               <xs:element minOccurs="1" maxOccurs="1" name="queuemanagement" type="xs:int" />
               <xs:element minOccurs="1" maxOccurs="1" name="enabled" type="xs:boolean" />
-              <xs:element minOccurs="1" maxOccurs="1" name="release" nillable="true" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="release_id" nillable="true" type="xs:int" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -461,10 +461,22 @@
         <xs:complexContent mixed="false">
           <xs:extension base="s0:DBRecord">
             <xs:sequence>
-              <xs:element minOccurs="1" maxOccurs="1" name="person_id" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="host_id" type="xs:int" />
               <xs:element minOccurs="0" maxOccurs="1" name="version" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string" />
               <xs:element minOccurs="1" maxOccurs="1" name="report_date" type="xs:dateTime" />
+            </xs:sequence>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
+      <xs:complexType name="DBRelease">
+        <xs:complexContent mixed="false">
+          <xs:extension base="s0:DBRecord">
+            <xs:sequence>
+              <xs:element minOccurs="0" maxOccurs="1" name="version" type="xs:string" />
+              <xs:element minOccurs="0" maxOccurs="1" name="revision" type="xs:string" />
+              <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string" />
+              <xs:element minOccurs="0" maxOccurs="1" name="filename" type="xs:string" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -510,18 +522,6 @@
               <xs:element minOccurs="0" maxOccurs="1" name="name" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="email" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="password" type="xs:string" />
-            </xs:sequence>
-          </xs:extension>
-        </xs:complexContent>
-      </xs:complexType>
-      <xs:complexType name="DBRelease">
-        <xs:complexContent mixed="false">
-          <xs:extension base="s0:DBRecord">
-            <xs:sequence>
-              <xs:element minOccurs="0" maxOccurs="1" name="version" type="xs:string" />
-              <xs:element minOccurs="0" maxOccurs="1" name="revision" type="xs:string" />
-              <xs:element minOccurs="0" maxOccurs="1" name="description" type="xs:string" />
-              <xs:element minOccurs="0" maxOccurs="1" name="filename" type="xs:string" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -912,7 +912,12 @@
       </xs:complexType>
       <xs:complexType name="ReportBuildBotStatusResponse">
         <xs:complexContent mixed="false">
-          <xs:extension base="s0:WebServiceResponse" />
+          <xs:extension base="s0:WebServiceResponse">
+            <xs:sequence>
+              <xs:element minOccurs="0" maxOccurs="1" name="ConfiguredVersion" type="xs:string" />
+              <xs:element minOccurs="0" maxOccurs="1" name="ConfiguredRevision" type="xs:string" />
+            </xs:sequence>
+          </xs:extension>
         </xs:complexContent>
       </xs:complexType>
       <xs:complexType name="GetBuildBotStatusResponse">
@@ -920,6 +925,8 @@
           <xs:extension base="s0:WebServiceResponse">
             <xs:sequence>
               <xs:element minOccurs="0" maxOccurs="1" name="Status" type="s0:ArrayOfDBBuildBotStatus" />
+              <xs:element minOccurs="0" maxOccurs="1" name="Hosts" type="s0:ArrayOfDBHost" />
+              <xs:element minOccurs="0" maxOccurs="1" name="Releases" type="s0:ArrayOfDBRelease" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -927,6 +934,11 @@
       <xs:complexType name="ArrayOfDBBuildBotStatus">
         <xs:sequence>
           <xs:element minOccurs="0" maxOccurs="unbounded" name="DBBuildBotStatus" nillable="true" type="s0:DBBuildBotStatus" />
+        </xs:sequence>
+      </xs:complexType>
+      <xs:complexType name="ArrayOfDBRelease">
+        <xs:sequence>
+          <xs:element minOccurs="0" maxOccurs="unbounded" name="DBRelease" nillable="true" type="s0:DBRelease" />
         </xs:sequence>
       </xs:complexType>
       <xs:complexType name="GetBuildInfoResponse">
@@ -1013,11 +1025,6 @@
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
-      </xs:complexType>
-      <xs:complexType name="ArrayOfDBRelease">
-        <xs:sequence>
-          <xs:element minOccurs="0" maxOccurs="unbounded" name="DBRelease" nillable="true" type="s0:DBRelease" />
-        </xs:sequence>
       </xs:complexType>
       <xs:complexType name="GetAdminInfoResponse">
         <xs:complexContent mixed="false">
@@ -2010,6 +2017,28 @@
           </xs:sequence>
         </xs:complexType>
       </xs:element>
+      <xs:element name="GetViewWorkTableData2">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="login" type="s0:WebServiceLogin" />
+            <xs:element minOccurs="1" maxOccurs="1" name="lane_id" nillable="true" type="xs:int" />
+            <xs:element minOccurs="0" maxOccurs="1" name="lane" type="xs:string" />
+            <xs:element minOccurs="1" maxOccurs="1" name="host_id" nillable="true" type="xs:int" />
+            <xs:element minOccurs="0" maxOccurs="1" name="host" type="xs:string" />
+            <xs:element minOccurs="1" maxOccurs="1" name="command_id" nillable="true" type="xs:int" />
+            <xs:element minOccurs="0" maxOccurs="1" name="command" type="xs:string" />
+            <xs:element minOccurs="1" maxOccurs="1" name="offset" type="xs:int" />
+            <xs:element minOccurs="1" maxOccurs="1" name="limit" type="xs:int" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="GetViewWorkTableData2Response">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="GetViewWorkTableData2Result" type="s0:GetViewWorkTableDataResponse" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
       <xs:element name="GetLaneFileForEdit">
         <xs:complexType>
           <xs:sequence>
@@ -2290,6 +2319,7 @@
       </xs:element>
       <xs:complexType name="BuildBotStatus">
         <xs:sequence>
+          <xs:element minOccurs="0" maxOccurs="1" name="Host" type="xs:string" />
           <xs:element minOccurs="0" maxOccurs="1" name="AssemblyVersion" type="xs:string" />
           <xs:element minOccurs="0" maxOccurs="1" name="AssemblyDescription" type="xs:string" />
         </xs:sequence>
@@ -3003,6 +3033,12 @@
   <message name="GetViewWorkTableDataSoapOut">
     <part name="parameters" element="s0:GetViewWorkTableDataResponse" />
   </message>
+  <message name="GetViewWorkTableData2SoapIn">
+    <part name="parameters" element="s0:GetViewWorkTableData2" />
+  </message>
+  <message name="GetViewWorkTableData2SoapOut">
+    <part name="parameters" element="s0:GetViewWorkTableData2Response" />
+  </message>
   <message name="GetLaneFileForEditSoapIn">
     <part name="parameters" element="s0:GetLaneFileForEdit" />
   </message>
@@ -3536,6 +3572,10 @@
       <input message="s0:GetViewWorkTableDataSoapIn" />
       <output message="s0:GetViewWorkTableDataSoapOut" />
     </operation>
+    <operation name="GetViewWorkTableData2">
+      <input message="s0:GetViewWorkTableData2SoapIn" />
+      <output message="s0:GetViewWorkTableData2SoapOut" />
+    </operation>
     <operation name="GetLaneFileForEdit">
       <input message="s0:GetLaneFileForEditSoapIn" />
       <output message="s0:GetLaneFileForEditSoapOut" />
@@ -3973,6 +4013,10 @@
     <operation name="GetViewWorkTableData">
       <input message="s0:GetViewWorkTableDataSoapIn" />
       <output message="s0:GetViewWorkTableDataSoapOut" />
+    </operation>
+    <operation name="GetViewWorkTableData2">
+      <input message="s0:GetViewWorkTableData2SoapIn" />
+      <output message="s0:GetViewWorkTableData2SoapOut" />
     </operation>
     <operation name="GetLaneFileForEdit">
       <input message="s0:GetLaneFileForEditSoapIn" />
@@ -4781,6 +4825,15 @@
     </operation>
     <operation name="GetViewWorkTableData">
       <soap:operation soapAction="http://monkeywrench.novell.com/GetViewWorkTableData" style="document" />
+      <input>
+        <soap:body use="literal" />
+      </input>
+      <output>
+        <soap:body use="literal" />
+      </output>
+    </operation>
+    <operation name="GetViewWorkTableData2">
+      <soap:operation soapAction="http://monkeywrench.novell.com/GetViewWorkTableData2" style="document" />
       <input>
         <soap:body use="literal" />
       </input>
@@ -5765,6 +5818,15 @@
     </operation>
     <operation name="GetViewWorkTableData">
       <soap12:operation soapAction="http://monkeywrench.novell.com/GetViewWorkTableData" style="document" />
+      <input>
+        <soap12:body use="literal" />
+      </input>
+      <output>
+        <soap12:body use="literal" />
+      </output>
+    </operation>
+    <operation name="GetViewWorkTableData2">
+      <soap12:operation soapAction="http://monkeywrench.novell.com/GetViewWorkTableData2" style="document" />
       <input>
         <soap12:body use="literal" />
       </input>
