@@ -169,6 +169,7 @@ namespace MonkeyWrench.WebServices
 						bool hidden;
 						byte filename_length;
 						byte compressed_mime_length;
+						bool compressed;
 						int content_length;
 						string filename;
 						string compressed_mime;
@@ -186,12 +187,17 @@ namespace MonkeyWrench.WebServices
 						filename = ReadString (reader, buffer, filename_length);
 
 						hidden = (flags & 0x2) == 0x2;
-						// compressed = (flags & 0x1) == 0x1;
+						compressed = (flags & 0x1) == 0x1;
 
 						Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1}: filename: '{2}' ", id, i + 1, filename);
 
 						DBFile file = DBFile_Extensions.Find (db, FileUtilities.MD5BytesToString (md5));
-						if (file == null) {
+						bool upload_file = false;
+						string filename_on_disk = DBFile_Extensions.GetFullPath (FileUtilities.MD5BytesToString (md5));
+
+						upload_file = file == null || filename_on_disk == null;
+
+						if (upload_file) {
 							Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1} must be sent, sending 'send file' response", id, i + 1);
 							// Write 'send file'
 							writer.Write ((byte) 1); // version
@@ -217,9 +223,15 @@ namespace MonkeyWrench.WebServices
 								}
 							}
 
-							Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1} received, uploading '{2}' to database", id, i + 1, tmpfile);
-							file = db.Upload (FileUtilities.MD5BytesToString (md5), tmpfile, filename, Path.GetExtension (filename), hidden, compressed_mime);
+							if (file == null) {
+								Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1} received, uploading '{2}' to database", id, i + 1, tmpfile);
+								file = db.Upload (FileUtilities.MD5BytesToString (md5), tmpfile, filename, Path.GetExtension (filename), hidden, compressed_mime);
+							} else {
+								Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1} received, moving '{2}' to file storage (record already in database)", id, i + 1, tmpfile);
+								File.Copy (tmpfile, FileUtilities.CreateFilename (FileUtilities.MD5BytesToString (md5), compressed, true));
+							}
 						} else {
+							File.SetLastWriteTime (filename_on_disk, DateTime.Now); // so that it's not deleted
 							Logger.Log (2, "Upload.ExecuteRequest (): {0} file #{1} already in database, not uploading", id, i + 1);
 						}
 
