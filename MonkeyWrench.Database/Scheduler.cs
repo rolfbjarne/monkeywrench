@@ -28,6 +28,7 @@ namespace MonkeyWrench.Scheduler
 	public static class Scheduler
 	{
 		private static bool is_executing;
+		private static bool is_execution_pending;
 
 		public static bool IsExecuting
 		{
@@ -90,6 +91,15 @@ namespace MonkeyWrench.Scheduler
 
 		public static bool ExecuteScheduler (bool forcefullupdate)
 		{
+			bool result = true;
+			do {
+				result = ExecuteSchedulerInternal (forcefullupdate) && result;
+			} while (result && is_execution_pending);
+			return result;
+		}
+
+		private static bool ExecuteSchedulerInternal (bool forcefullupdate)
+		{
 			DateTime start;
 			Lock scheduler_lock = null;
 			List<DBLane> lanes;
@@ -101,6 +111,7 @@ namespace MonkeyWrench.Scheduler
 			try {
 				scheduler_lock = Lock.Create ("MonkeyWrench.Scheduler");
 				if (scheduler_lock == null) {
+					is_execution_pending = true;
 					Logger.Log ("Could not aquire scheduler lock.");
 					return false;
 				}
@@ -108,6 +119,7 @@ namespace MonkeyWrench.Scheduler
 				Logger.Log ("Scheduler lock aquired successfully.");
 				
 				is_executing = true;
+				is_execution_pending = false;
 				start = DateTime.Now;
 
 				SVNUpdater.StartDiffThread ();
