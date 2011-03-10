@@ -87,7 +87,7 @@ public partial class ViewHostHistory : System.Web.UI.Page
 
 			StringBuilder table = new StringBuilder ();
 			table.AppendLine ("<table class='buildstatus'>");
-			table.AppendLine ("<tr><td>Lane</td><td>Host</td><td>Revision</td><td>State</td><td>StartTime</td><td>Completed</td><td>Duration</td><td>Commands</td></tr>");
+			table.AppendLine ("<tr><td> </td><td>Lane</td><td>Host</td><td>Revision</td><td>State</td><td>StartTime</td><td>Completed</td><td>Duration</td><td>Commands</td></tr>");
 			for (int i = 0; i < response.RevisionWorks.Count; i++) {
 				DBRevisionWork rw = response.RevisionWorks [i];
 				string lane = response.Lanes [i];
@@ -96,6 +96,8 @@ public partial class ViewHostHistory : System.Web.UI.Page
 				DateTime starttime = response.StartTime [i].ToLocalTime ();
 				int duration = response.Durations [i];
 				table.Append ("<tr>");
+				table.AppendFormat ("<td><input type='checkbox' id='entry{4}' value='ViewHostHistory.aspx?lane_id={0}&host_id={1}&revision_id={2}&masterhost_id={3}&action='> </td>",
+					rw.lane_id, rw.workhost_id, rw.revision_id, rw.host_id, i);
 				table.AppendFormat ("<td><a href='ViewTable.aspx?lane_id={1}&host_id={2}'>{0}</a></td>", lane, rw.lane_id, rw.host_id);
 				table.AppendFormat ("<td>{0}</td>", host);
 				table.AppendFormat ("<td><a href='ViewLane.aspx?lane_id={0}&host_id={1}&revision_id={2}'>{3}</a></td>", rw.lane_id, rw.host_id, rw.revision_id, revision);
