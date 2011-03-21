@@ -127,6 +127,11 @@ namespace MonkeyWrench
 			}
 		}
 
+		public static Stream GZCompressToStream (string filename)
+		{
+			return new GZipStream (new FileStream (filename, FileMode.Open, FileAccess.Read, FileShare.Read), CompressionMode.Compress, false);
+		}
+
 		public static string GlobToRegExp (string expression)
 		{
 			char [] carr = expression.ToCharArray ();
