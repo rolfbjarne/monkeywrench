@@ -98,6 +98,17 @@ public partial class Releases : System.Web.UI.Page
 						Response.AddHeader ("Content-Disposition", "attachment; filename=" + release_latest.filename);
 						Response.TransmitFile (Path.Combine (Configuration.GetReleaseDirectory (), release_latest.filename));
 						return;
+					} else if (!string.IsNullOrEmpty (Request ["release_version"])) {
+						string release_version = Request ["release_version"];
+						foreach (DBRelease release in response.Releases) {
+							if (release.version != release_version)
+								continue;
+
+							Response.ContentType = "application/zip";
+							Response.AddHeader ("Content-Disposition", "attachment; filename=" + release.filename);
+							Response.TransmitFile (Path.Combine (Configuration.GetReleaseDirectory (), release.filename));
+							return;
+						}
 					} else  {
 						lblMessage.Text = "Invalid release";
 					}
