@@ -15,8 +15,8 @@ REFERENCES = \
 	-r:System.Data.dll
 
 all:
-	make generate-assembly-info
-	make $(OUT)
+	$(MAKE) generate-assembly-info
+	$(MAKE) $(OUT)
 
 clean:
 	@rm -f $(OUT)*
