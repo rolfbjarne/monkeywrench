@@ -54,4 +54,4 @@ CREATE VIEW RevisionWorkView2 AS
 
 CREATE VIEW TestResult AS
 	SELECT 
-		0 as id, workfile.id as workfile_id, file.md5, workfile.filename, work.command_id, revision.revision, revisionwork.id as revisionwork_id, revisionwork.lane_id, revisionwork.host_id FROM Work;
+		0 as id, workfile.id as workfile_id, file.md5, workfile.filename, work.command_id, revision.revision, revisionwork.id as revisionwork_id, revisionwork.lane_id, revisionwork.host_id, revisionwork.revision_id FROM Work;

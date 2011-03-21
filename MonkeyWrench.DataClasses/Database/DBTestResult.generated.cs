@@ -38,6 +38,7 @@ namespace MonkeyWrench.DataClasses
 		private int _revisionwork_id;
 		private int _lane_id;
 		private int _host_id;
+		private int _revision_id;
 
 		public int @workfile_id { get { return _workfile_id; } set { _workfile_id = value; } }
 		public string @md5 { get { return _md5; } set { _md5 = value; } }
@@ -47,14 +48,15 @@ namespace MonkeyWrench.DataClasses
 		public int @revisionwork_id { get { return _revisionwork_id; } set { _revisionwork_id = value; } }
 		public int @lane_id { get { return _lane_id; } set { _lane_id = value; } }
 		public int @host_id { get { return _host_id; } set { _host_id = value; } }
+		public int @revision_id { get { return _revision_id; } set { _revision_id = value; } }
 
 
 		public const string SQL = 
 @"SELECT  
-		0 as id, workfile.id as workfile_id, file.md5, workfile.filename, work.command_id, revision.revision, revisionwork.id as revisionwork_id, revisionwork.lane_id, revisionwork.host_id FROM Work;";
+		0 as id, workfile.id as workfile_id, file.md5, workfile.filename, work.command_id, revision.revision, revisionwork.id as revisionwork_id, revisionwork.lane_id, revisionwork.host_id, revisionwork.revision_id FROM Work;";
 
 
-		private static string [] _fields_ = new string [] { "workfile_id", "md5", "filename", "command_id", "revision", "revisionwork_id", "lane_id", "host_id" };
+		private static string [] _fields_ = new string [] { "workfile_id", "md5", "filename", "command_id", "revision", "revisionwork_id", "lane_id", "host_id", "revision_id" };
 		public override string [] Fields
 		{
 			get
