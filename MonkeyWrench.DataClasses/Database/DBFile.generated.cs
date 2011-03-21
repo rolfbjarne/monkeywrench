@@ -33,6 +33,7 @@ namespace MonkeyWrench.DataClasses
 		private string _filename;
 		private string _md5;
 		private int? _file_id;
+		private DateTime _write_stamp;
 		private string _mime;
 		private string _compressed_mime;
 		private int _size;
@@ -41,6 +42,7 @@ namespace MonkeyWrench.DataClasses
 		public string @filename { get { return _filename; } set { _filename = value; } }
 		public string @md5 { get { return _md5; } set { _md5 = value; } }
 		public int? @file_id { get { return _file_id; } set { _file_id = value; } }
+		public DateTime @write_stamp { get { return _write_stamp; } set { _write_stamp = value; } }
 		public string @mime { get { return _mime; } set { _mime = value; } }
 		public string @compressed_mime { get { return _compressed_mime; } set { _compressed_mime = value; } }
 		public int @size { get { return _size; } set { _size = value; } }
@@ -57,7 +59,7 @@ namespace MonkeyWrench.DataClasses
 		{
 			get
 			{
-				return new string [] { "filename", "md5", "file_id", "mime", "compressed_mime", "size", "hidden" };
+				return new string [] { "filename", "md5", "file_id", "write_stamp", "mime", "compressed_mime", "size", "hidden" };
 			}
 		}
         

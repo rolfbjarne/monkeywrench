@@ -172,7 +172,7 @@ CREATE TABLE File (
 	md5             text       UNIQUE NOT NULL,       -- having an md5 checksum allows us to use the same record for all equal files
 	file_id         int        NULL DEFAULT NULL,         -- the large object id (should this be defined as oid instead of int?)
                                                       -- if this is null, the file is stored on the disk (in the db/files sub directory of DataDirectory as specified in MonkeyWrench.xml)
-	write_stamp     timestamp  NOT NULL DEFAULT '2000-01-01 00:00:00+0', -- last time this file was written to
+	write_stamp     timestamp  NOT NULL DEFAULT now (), -- last time this file was written to
 	mime            text       NOT NULL DEFAULT '',   -- the mime type of the file
 	compressed_mime text       NOT NULL DEFAULT '',   -- if the file is stored compressed, this field is not '', and it specifies the compression algorithm (application/zip, tar, etc).
 	                                                  -- this allows us to store for instance log files compressed, and the web server can deliver the compressed log file by
