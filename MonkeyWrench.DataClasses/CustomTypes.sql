@@ -51,3 +51,7 @@ CREATE VIEW RevisionWorkView2 AS
 	INNER JOIN Revision ON RevisionWork.revision_id = Revision.id
 	ORDER BY 
 		Revision.date DESC;
+
+CREATE VIEW TestResult AS
+	SELECT 
+		file.md5, workfile.id, workfile.filename, work.command_id, revision.revision, revisionwork.lane_id, revisionwork.host_id;

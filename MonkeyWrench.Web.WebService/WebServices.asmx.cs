@@ -2429,6 +2429,44 @@ WHERE Revision.lane_id = @lane_id AND ";
 		}
 
 		[WebMethod]
+		public GetTestResultsResponse GetTestResults (WebServiceLogin login, string [] revisions, string filename)
+		{
+			GetTestResultsResponse response = new GetTestResultsResponse ();
+
+			using (DB db = new DB ()) {
+				Authenticate (db, login, response);
+
+				using (IDbCommand cmd = db.CreateCommand ()) {
+					cmd.CommandText = @"
+SELECT file.md5, workfile.id, workfile.filename, work.command_id, revision.revision, revisionwork.lane_id, revisionwork.host_id
+FROM workfile INNER JOIN work ON work.id = workfile.work_id
+INNER JOIN revisionwork ON work.revisionwork_id = revisionwork.id
+INNER JOIN revision ON revision.id = revisionwork.revision_id 
+INNER JOIN file ON file.id = workfile.file_id 
+WHERE workfile.filename = @filename AND (";
+					DB.CreateParameter (cmd, "filename", filename);
+					for (int i = 0; i < revisions.Length; i++) {
+						string name = "revision" + i.ToString ();
+						DB.CreateParameter (cmd, name, revisions [i]);
+						if (i > 0)
+							cmd.CommandText += " OR ";
+						cmd.CommandText += "revision.revision = @" + name;
+					}
+					cmd.CommandText += ");";
+
+					response.Results = new List<DBTestResult> ();
+					using (IDataReader reader = cmd.ExecuteReader ()) {
+						while (reader.Read ()) {
+							response.Results.Add (new DBTestResult (reader));
+						}
+					}
+				}
+			}
+
+			return response;
+		}
+
+		[WebMethod]
 		public WebServiceResponse EditIdentity (WebServiceLogin login, DBIrcIdentity irc_identity, DBEmailIdentity email_identity)
 		{
 			WebServiceResponse response = new WebServiceResponse ();

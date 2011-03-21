@@ -62,6 +62,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Database\DBTestResult.cs" />
     <Compile Include="Database\DBBuildBotStatus.cs" />
     <Compile Include="Database\DBBuildBotStatus.generated.cs" />
     <Compile Include="Database\DBNotificationType.cs" />
@@ -124,6 +125,7 @@
     <Compile Include="Database\DBRevisionWorkView2.cs" />
     <Compile Include="Database\DBRevisionWorkView2.generated.cs" />
     <Compile Include="Database\DBState.cs" />
+    <Compile Include="Database\DBTestResult.generated.cs" />
     <Compile Include="Database\DBUserEmail.cs" />
     <Compile Include="Database\DBUserEmail.generated.cs" />
     <Compile Include="Database\DBView.cs" />
@@ -141,6 +143,7 @@
     <Compile Include="Logic\GetIdentitiesResponse.cs" />
     <Compile Include="Logic\GetNotificationsResponse.cs" />
     <Compile Include="Logic\GetReleasesResponse.cs" />
+    <Compile Include="Logic\GetTestResultsResponse.cs" />
     <Compile Include="Logic\GetUserResponse.cs" />
     <Compile Include="Logic\FindHostResponse.cs" />
     <Compile Include="Logic\FindLaneResponse.cs" />
