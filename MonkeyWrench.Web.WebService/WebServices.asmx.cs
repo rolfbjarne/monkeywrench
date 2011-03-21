@@ -2438,7 +2438,7 @@ WHERE Revision.lane_id = @lane_id AND ";
 
 				using (IDbCommand cmd = db.CreateCommand ()) {
 					cmd.CommandText = @"
-SELECT file.md5, workfile.id, workfile.filename, work.command_id, revision.revision, revisionwork.lane_id, revisionwork.host_id
+SELECT 0 as id, workfile.id as workfile_id, file.md5, workfile.filename, work.command_id, revision.revision, revisionwork.id as revisionwork_id, revisionwork.lane_id, revisionwork.host_id
 FROM workfile INNER JOIN work ON work.id = workfile.work_id
 INNER JOIN revisionwork ON work.revisionwork_id = revisionwork.id
 INNER JOIN revision ON revision.id = revisionwork.revision_id 
