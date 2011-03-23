@@ -25,15 +25,27 @@ namespace MonkeyWrench.CleanFiles
 {
 	class Program
 	{
+		static void Log (string msg, params object [] args)
+		{
+			Console.WriteLine ("{0} {1}", DateTime.Now.ToLongTimeString (), string.Format (msg, args));
+		}
+
 		static void Main (string [] args)
 		{
 			int counter = 0;
 			int existing_files = 0;
 			int missing_files = 0;
+			int chunk_missing_files = 0;
+			int chunk_size = 250;
+			int sleep_time = 15000;
 			string fn;
 			bool exists;
+			StringBuilder delete_sql = new StringBuilder ();
 
 			try {
+				// be nice
+				System.Diagnostics.Process.GetCurrentProcess ().PriorityClass = System.Diagnostics.ProcessPriorityClass.Idle;
+				
 				Configuration.LoadConfiguration (args);
 				using (DB db = new DB ()) {
 					using (DB write_db = new DB ()) {
@@ -55,11 +67,23 @@ namespace MonkeyWrench.CleanFiles
 										existing_files++;
 									} else {
 										missing_files++;
+										chunk_missing_files++;
+										delete_sql.AppendFormat (@"
+UPDATE Revision SET log_file_id = NULL WHERE log_file_id = {0};
+UPDATE Revision SET diff_file_id = NULL WHERE diff_file_id = {0};
+DELETE FROM WorkFile WHERE file_id = {0};
+DELETE FROM File WHERE id = {0};
+", f.id);
 									}
 									counter++;
-									if (counter % 1000 == 0) {
-										Console.WriteLine ("Processed {0} files, sleeping a bit. So far {1} existing files and {2} missing files.", counter, existing_files, missing_files);
-										System.Threading.Thread.Sleep (15000);
+									if (counter % chunk_size == 0) {
+										if (chunk_missing_files > 0) {
+											Log ("Deleting {0} file records...", chunk_missing_files);
+										}
+										Log ("Processed {0} files, sleeping a bit. So far {1} existing files and {2} missing files ({3} in this chunk).", counter, existing_files, missing_files, chunk_missing_files);
+										System.Threading.Thread.Sleep (sleep_time);
+
+										chunk_missing_files = 0;
 									}
 								}
 							}
