@@ -213,6 +213,7 @@ namespace MonkeyWrench
 					{"move-files-to-file-system", v => MoveFilesToFileSystem = true},
 					{"move-files-to-database", v => MoveFilesToDatabase = true},
 					{"allowed-commit-reporter-ips", v => AllowedCommitReporterIPs = v},
+					{"v|verbose", v => LogVerbosity++},
 				};
 				List<string> extra = null;
 				try {

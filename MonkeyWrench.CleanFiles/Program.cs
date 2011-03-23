@@ -54,7 +54,8 @@ namespace MonkeyWrench.CleanFiles
 							using (IDataReader reader = cmd.ExecuteReader ()) {
 								while (reader.Read ()) {
 									DBFile f = new DBFile (reader);
-									Console.WriteLine ("Read file #{2}: {0} {1}", f.md5, f.write_stamp, counter);
+									if (Configuration.LogVerbosity > 2)
+										Log ("Read file #{2}: {0} {1}", f.md5, f.write_stamp, counter);
 									exists = true;
 									fn = FileUtilities.CreateFilename (f.md5, f.compressed_mime != null, false);
 									if (!File.Exists (fn)) {
@@ -78,12 +79,19 @@ DELETE FROM File WHERE id = {0};
 									counter++;
 									if (counter % chunk_size == 0) {
 										if (chunk_missing_files > 0) {
+											int result;
 											Log ("Deleting {0} file records...", chunk_missing_files);
+											using (IDbCommand dcmd = write_db.CreateCommand ()) {
+												dcmd.CommandText = delete_sql.ToString ();
+												result = dcmd.ExecuteNonQuery ();
+											}
+											Log ("Deleting {0} file records resulted in {1} affected rows.", chunk_missing_files, result);
 										}
 										Log ("Processed {0} files, sleeping a bit. So far {1} existing files and {2} missing files ({3} in this chunk).", counter, existing_files, missing_files, chunk_missing_files);
 										System.Threading.Thread.Sleep (sleep_time);
 
 										chunk_missing_files = 0;
+										delete_sql.Length = 0;
 									}
 								}
 							}
