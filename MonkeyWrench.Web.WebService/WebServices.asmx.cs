@@ -2452,7 +2452,7 @@ WHERE workfile.filename = @filename AND (";
 							cmd.CommandText += " OR ";
 						cmd.CommandText += "revision.revision = @" + name;
 					}
-					cmd.CommandText += ");";
+					cmd.CommandText += ") ORDER BY revision.date DESC;";
 
 					response.Results = new List<DBTestResult> ();
 					using (IDataReader reader = cmd.ExecuteReader ()) {
