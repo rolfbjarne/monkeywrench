@@ -310,46 +310,50 @@ namespace MonkeyWrench.Web.WebServices
 							int read;
 							int total = 0;
 
-							// try to compress the file
-							string original_contents = path_to_contents;
 							try {
-								gz = FileUtilities.GZCompress (path_to_contents);
-								if (gz != null) {
-									path_to_contents = gz;
-									compressed_mime = MimeTypes.GZ;
-								} else {
+								// try to compress the file
+								string original_contents = path_to_contents;
+								try {
+									gz = FileUtilities.GZCompress (path_to_contents);
+									if (gz != null) {
+										path_to_contents = gz;
+										compressed_mime = MimeTypes.GZ;
+									} else {
+										path_to_contents = filename;
+										compressed_mime = null;
+									}
+									Logger.Log (2, "Compressed {0} to {1}.", original_contents, gz);
+								} catch (Exception ex) {
 									path_to_contents = filename;
 									compressed_mime = null;
+									Logger.Log ("Could not compress the file {0}: {1}, uploading uncompressed.", filename, ex.Message);
 								}
-								Logger.Log (2, "Compressed {0} to {1}.", original_contents, gz);
-							} catch (Exception ex) {
-								path_to_contents = filename;
-								compressed_mime = null;
-								Logger.Log ("Could not compress the file {0}: {1}, uploading uncompressed.", filename, ex.Message);
-							}
 
-							fi = new FileInfo (path_to_contents);
+								fi = new FileInfo (path_to_contents);
 
-							long length = fi.Length;
-							if (length > 1024 * 1024 * 100) {
-								files.Dequeue ();
-								hiddens.Dequeue ();
-								throw new ApplicationException (string.Format ("Not uploading {0} ({2}): filesize is > 100MB (it is: {1} MB)", path_to_contents, length / (1024.0 * 1024.0), filename));
-							}
-
-							if (compressed_mime == null) {
-								writer.Write ((byte) 0);
-							} else {
-								WriteStringByte (writer, compressed_mime); // compressed_mime_length + compressed_mime
-							}
-							writer.Write ((uint) fi.Length); // content_length
-
-							using (FileStream fs = new FileStream (path_to_contents, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-								while ((read = fs.Read (buffer, 0, buffer.Length)) != 0) {
-									total += read;
-									writer.Write (buffer, 0, read);
+								long length = fi.Length;
+								if (length > 1024 * 1024 * 100) {
+									files.Dequeue ();
+									hiddens.Dequeue ();
+									throw new ApplicationException (string.Format ("Not uploading {0} ({2}): filesize is > 100MB (it is: {1} MB)", path_to_contents, length / (1024.0 * 1024.0), filename));
 								}
-								writer.Flush ();
+
+								if (compressed_mime == null) {
+									writer.Write ((byte) 0);
+								} else {
+									WriteStringByte (writer, compressed_mime); // compressed_mime_length + compressed_mime
+								}
+								writer.Write ((uint) fi.Length); // content_length
+
+								using (FileStream fs = new FileStream (path_to_contents, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+									while ((read = fs.Read (buffer, 0, buffer.Length)) != 0) {
+										total += read;
+										writer.Write (buffer, 0, read);
+									}
+									writer.Flush ();
+								}
+							} finally {
+								FileUtilities.TryDeleteFile (gz);
 							}
 							Logger.Log (2, "WebServices.UploadFilesSafe (): uploaded '{0}', {1} bytes", filename, total);
 
@@ -368,7 +372,6 @@ namespace MonkeyWrench.Web.WebServices
 						Logger.Log ("WebServices.UploadFilesSafe (): all files uploaded successfully");
 					}
 				} finally {
-					FileUtilities.TryDeleteFile (gz);
 					try {
 						stream.Close ();
 						reader.Close ();
@@ -385,63 +388,7 @@ namespace MonkeyWrench.Web.WebServices
 			});
 
 		}
-
-		/// <summary>
-		/// Uploads the file (compressed if possible) and in case of failures retries until it succeeds.
-		/// </summary>
-		/// <param name="work"></param>
-		/// <param name="filename"></param>
-		/// <param name="hidden"></param>
-		[Obsolete ()]
-		public void UploadFileSafe (DBWork work, string filename, bool hidden)
-		{
-			string gz = null;
-			string file_to_upload = null;
-			string compressed_mime = null;
-
-			try { // try to upload
-
-				// try to compress the file
-				try {
-					gz = FileUtilities.GZCompress (filename);
-					if (gz != null) {
-						file_to_upload = gz;
-						compressed_mime = MimeTypes.GZ;
-					} else {
-						file_to_upload = filename;
-						compressed_mime = null;
-					}
-				} catch (Exception ex) {
-					file_to_upload = filename;
-					compressed_mime = null;
-					Logger.Log ("Could not compress the file {0}: {1}, uploading uncompressed.", filename, ex.Message);
-				}
-
-				long length = new FileInfo (file_to_upload).Length;
-				if (length > 1024 * 1024 * 100) {
-					Logger.Log ("Not uploading {0} ({2}): filesize is > 100MB (it is: {1} MB)", file_to_upload, length / (1024.0 * 1024.0), filename);
-					return;
-				}
-
-				// try to upload the file
-				ExecuteSafe (string.Format ("upload the file {0}", filename), delegate ()
-				{
-					this.UploadCompressedFile (WebServiceLogin, work, Path.GetFileName (filename), File.ReadAllBytes (file_to_upload), hidden, compressed_mime);
-				});
-			} catch (Exception ex) {
-				Logger.Log ("Could not upload {0}: {1}", filename, ex.Message);
-			} finally {
-				// clean up
-				try {
-					// delete any files we may have created
-					if (gz != null)
-						File.Delete (gz);
-				} catch {
-					// ignore any exceptions
-				}
-			}
-		}
-
+		
 		public static void ExecuteSchedulerAsync ()
 		{
 			WebServices WebService = Create ();
