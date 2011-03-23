@@ -123,7 +123,7 @@ namespace MonkeyWrench.Database
 			using (IDbCommand cmd = db.CreateCommand ()) {
 				cmd.CommandText =
 @"
-SELECT File.id, File.md5, File.file_id, File.mime, File.compressed_mime, File.size, File.file_id, File.hidden OR WorkFile.hidden AS hidden,
+SELECT File.id, File.md5, File.file_id, File.mime, File.compressed_mime, File.size, File.file_id, File.write_stamp, File.hidden OR WorkFile.hidden AS hidden,
 	CASE WHEN WorkFile.filename = '' THEN File.filename ELSE WorkFile.filename END
 	FROM WorkFile
 		INNER JOIN File ON WorkFile.file_id = File.id
