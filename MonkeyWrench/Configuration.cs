@@ -53,6 +53,7 @@ namespace MonkeyWrench
 		public static bool ExecuteDeletionDirectives;
 		public static bool MoveFilesToFileSystem;
 		public static bool MoveFilesToDatabase;
+		public static bool ClearDeletedFilesFromDB;
 
 		private static string GetNodeValue (this XmlNode node, string @default)
 		{
@@ -215,6 +216,7 @@ namespace MonkeyWrench
 					{"execute-deletion-directives", v => ExecuteDeletionDirectives = true},
 					{"move-files-to-file-system", v => MoveFilesToFileSystem = true},
 					{"move-files-to-database", v => MoveFilesToDatabase = true},
+					{"clear-deleted-files-from-db", v => ClearDeletedFilesFromDB = true},
 					{"allowed-commit-reporter-ips", v => AllowedCommitReporterIPs = v},
 					{"v|verbose", v => LogVerbosity++},
 				};

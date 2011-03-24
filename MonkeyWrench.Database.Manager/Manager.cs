@@ -45,6 +45,9 @@ namespace MonkeyWrench.Database.Manager
 				if (Configuration.MoveFilesToFileSystem)
 					result += MoveFilesToFileSystem ();
 
+				if (Configuration.ClearDeletedFilesFromDB)
+					result += ClearDeletedFilesFromDB ();
+
 				return result;
 			} catch (Exception ex) {
 				Console.WriteLine ();
@@ -272,6 +275,99 @@ LIMIT 10
 
 			LogWithTime ("MoveFilesToFileSystem: [Done]");
 
+			return 0;
+		}
+
+		static void Log (string msg, params object [] args)
+		{
+			Console.WriteLine ("{0} {1}", DateTime.Now.ToLongTimeString (), string.Format (msg, args));
+		}
+
+		static int ClearDeletedFilesFromDB ()
+		{
+			int counter = 0;
+			int existing_files = 0;
+			int missing_files = 0;
+			int chunk_missing_files = 0;
+			int chunk_size = 250;
+			int sleep_time = 15000;
+			string fn;
+			bool exists;
+			StringBuilder delete_sql = new StringBuilder ();
+
+			try {
+				// be nice
+				System.Diagnostics.Process.GetCurrentProcess ().PriorityClass = System.Diagnostics.ProcessPriorityClass.Idle;
+
+				using (DB db = new DB ()) {
+					using (DB write_db = new DB ()) {
+						using (IDbCommand cmd = db.CreateCommand ()) {
+							cmd.CommandText = "SELECT * FROM File;";
+							using (IDataReader reader = cmd.ExecuteReader ()) {
+								while (reader.Read ()) {
+									DBFile f = new DBFile (reader);
+									if (Configuration.LogVerbosity > 2)
+										Log ("Read file #{2}: {0} {1}", f.md5, f.write_stamp, counter);
+									exists = true;
+									fn = FileUtilities.CreateFilename (f.md5, f.compressed_mime != null, false);
+									if (!File.Exists (fn)) {
+										fn = FileUtilities.CreateFilename (f.md5, f.compressed_mime == null, false);
+										if (!File.Exists (fn)) {
+											exists = false;
+										}
+									}
+									if (exists) {
+										existing_files++;
+									} else {
+										missing_files++;
+										chunk_missing_files++;
+										delete_sql.AppendFormat (@"
+UPDATE Revision SET log_file_id = NULL WHERE log_file_id = {0};
+UPDATE Revision SET diff_file_id = NULL WHERE diff_file_id = {0};
+DELETE FROM WorkFile WHERE file_id = {0};
+DELETE FROM File WHERE id = {0};
+", f.id);
+									}
+									counter++;
+									if (counter % chunk_size == 0) {
+										if (chunk_missing_files > 0) {
+											int result;
+											Log ("Deleting {0} file records...", chunk_missing_files);
+											using (IDbCommand dcmd = write_db.CreateCommand ()) {
+												dcmd.CommandText = delete_sql.ToString ();
+												result = dcmd.ExecuteNonQuery ();
+											}
+											Log ("Deleting {0} file records resulted in {1} affected rows.", chunk_missing_files, result);
+										}
+										Log ("Processed {0} files. So far {1} existing files and {2} missing files ({3} in this chunk).", counter, existing_files, missing_files, chunk_missing_files);
+										try {
+											double avg;
+											string load_avg = File.ReadAllText ("/proc/loadavg").Split (new char [] {' '}, StringSplitOptions.RemoveEmptyEntries) [0];
+											if (!double.TryParse (load_avg, out avg))  {
+												Log ("Could not parse load avg: '{0}', sleep for {1} ms", load_avg, sleep_time);
+												System.Threading.Thread.Sleep (sleep_time);
+											} else if (avg >= 1.0) {
+												Log ("Load average is {0} >= 1.0, so sleep for {1} ms", avg, sleep_time);
+												System.Threading.Thread.Sleep (sleep_time);
+											} else {
+												Log ("Load average is {0} < 1.0, no need to wait", avg);
+											}
+										} catch (Exception ex) {
+											Log ("Could not check load average: {0}", ex.Message);
+										}
+
+										chunk_missing_files = 0;
+										delete_sql.Length = 0;
+									}
+								}
+							}
+						}
+					}
+				}
+			} catch (Exception ex) {
+				Log (ex.ToString ());
+				return 1;
+			}
 			return 0;
 		}
 
