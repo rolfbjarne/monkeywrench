@@ -45,6 +45,7 @@ namespace MonkeyWrench
 		public static int UploadPort = 0; // default = 0 (any port)
 		public static int LogVerbosity = 1; // 0: quiet, 1: some messages, 2: verbose (default: 1)
 		public static string IRCLocalEndPoint = string.Empty;
+		public static long MaxLogSize = 1024 * 1024 * 100; // 100MB
 
 		//the following are used by the database manager.
 		public static bool CleanLargeObjects;
@@ -177,6 +178,7 @@ namespace MonkeyWrench
 				SiteSkin = xml.SelectSingleNode ("MonkeyWrench/Configuration/SiteSkin").GetNodeValue (SiteSkin);
 				UploadPort = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/UploadPort").GetNodeValue (UploadPort.ToString ()));
 				IRCLocalEndPoint = xml.SelectSingleNode ("MonkeyWrench/Configuration/IRCLocalEndPoint").GetNodeValue (IRCLocalEndPoint);
+				MaxLogSize = long.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/MaxLogSize").GetNodeValue (MaxLogSize.ToString ()));
 
 				// override from command line
 
@@ -205,6 +207,7 @@ namespace MonkeyWrench
 					{"siteskin=", v => SiteSkin = v},
 					{"uploadport=", v => UploadPort = int.Parse (v.Trim ())},
 					{"irclocalendpoint=", v => IRCLocalEndPoint = v},
+					{"maxlogsize=", v => MaxLogSize = long.Parse (v.Trim ())},
 
 					// values for the database manager
 					{"compress-files", v => CompressFiles = true},
@@ -241,6 +244,16 @@ namespace MonkeyWrench
 
 				if (!string.IsNullOrEmpty (GetReleaseDirectory ()) && !Directory.Exists (GetReleaseDirectory ()))
 					Directory.CreateDirectory (GetReleaseDirectory ());
+
+				try {
+					if (MaxLogSize > 0 && File.Exists (LogFile) && new FileInfo (LogFile).Length > MaxLogSize) {
+						using (FileStream fs = new FileStream (LogFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) {
+							// truncate the file by opening it with FileMode.Create
+						}
+					}
+				} catch (IOException ex) {
+					Console.Error.WriteLine ("MonkeyWrench: Could not verify max log size of {0}: {1}", LogFile, ex.Message);
+				}
 
 			} catch (Exception ex) {
 				Console.Error.WriteLine ("MonkeyWrench: Fatal error: Could not load configuration file from: {0}: {1}", file, ex.Message);
