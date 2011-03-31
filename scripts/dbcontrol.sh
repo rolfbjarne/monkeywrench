@@ -143,7 +143,7 @@ case "$CMD" in
 		mkdir -p backup-configuration
 		cd backup-configuration
 		for i in $CONFIGURATION_TABLES; do
-			pg_dump -aDd -U builder -t $i builder > backup-configuration.$i.sql 
+			pg_dump -ad --column-inserts -U builder -t $i builder > backup-configuration.$i.sql 
 		done
 		zip backup-configuration.zip backup-configuration.*.sql
 		N=`date +"%Y-%m-%d"`
