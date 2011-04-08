@@ -21,7 +21,7 @@
             Initializes the message queues, read and write thread
             </summary>
         </member>
-        <member name="M:Meebey.SmartIrc4net.IrcConnection.Connect(System.String[],System.Int32)">
+        <member name="M:Meebey.SmartIrc4net.IrcConnection.Connect(System.String[],System.Int32,System.Net.IPEndPoint)">
             <overloads>this method has 2 overloads</overloads>
             <summary>
             Connects to the specified server and port, when the connection fails
