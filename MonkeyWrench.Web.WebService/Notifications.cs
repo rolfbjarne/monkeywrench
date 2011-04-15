@@ -38,6 +38,8 @@ namespace MonkeyWrench.Web.WebService
 		{
 			List<DBLaneNotification> lane_notifications = new List<DBLaneNotification> ();
 
+			System.Net.ServicePointManager.ServerCertificateValidationCallback += HandleCertificateValidation;
+
 			lock (lock_obj) {
 				using (DB db = new DB ()) {
 					using (IDbCommand cmd = db.CreateCommand ()) {
@@ -100,14 +102,193 @@ namespace MonkeyWrench.Web.WebService
 
 		public static void Notify (DBWork work, DBRevisionWork revision_work)
 		{
-			Logger.Log ("Notifications.Notify (lane_id: {1} revision_id: {2} host_id: {3} State: {0})", work.State, revision_work.lane_id, revision_work.revision_id, revision_work.host_id);
+			Logger.Log ("Notifications.Notify (lane_id: {1} revision_id: {2} host_id: {3} State: {0} Completed: {4})", work.State, revision_work.lane_id, revision_work.revision_id, revision_work.host_id, revision_work.completed);
 			if (notifications == null)
 				return;
+
+			if (revision_work.completed) {
+				using (DB db = new DB ()) {
+					using (IDbCommand cmd = db.CreateCommand ()) {
+						cmd.CommandText = "SELECT * FROM TryCommit WHERE revisionwork_id = " + revision_work.id + ";";
+						using (IDataReader reader = cmd.ExecuteReader ()) {
+							if (reader.Read ()) {
+								DBTryCommit tc = new DBTryCommit (reader);
+								ThreadPool.QueueUserWorkItem ((v) =>
+								{
+									try {
+										ProcessTryCommit (revision_work, tc);
+									} catch {
+										// just swallow
+									}
+								});
+							}
+						}
+					}
+				}
+			}
 
 			if (!(work.State == DBState.Failed || work.State == DBState.Issues))
 				return;
 
-			ThreadPool.QueueUserWorkItem ((v) => ProcessNotify (work, revision_work));
+			ThreadPool.QueueUserWorkItem ((v) =>
+				{
+					try {
+						ProcessNotify (work, revision_work);
+					} catch {
+						// just swallow
+					}
+				});
+		}
+
+		private static bool HandleCertificateValidation (object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, System.Security.Cryptography.X509Certificates.X509Chain chain, System.Net.Security.SslPolicyErrors sslPolicyErrors)
+		{
+			/* Accept any errors */
+			return true;
+		}
+
+		private static void ExecuteTryCommitAction (DBRevisionWork revision_work, DBRevision revision, DBLane lane, DBTryCommit try_commit, StringBuilder log, out string summary)
+		{
+			if (revision_work.State != DBState.Success) {
+				summary = "Action not executed since the commit failed.";
+				return;
+			}
+
+			log.AppendFormat ("Action upon success: {0}", try_commit.SuccessfulAction.ToString ());
+			log.AppendLine ();
+
+			try {
+				switch (try_commit.SuccessfulAction) {
+				case DBTryCommitAction.None:
+					summary = "Action upon success: None";
+					return;
+				case DBTryCommitAction.CherryPick:
+					summary = "Action upon success: Cherry pick";
+					break;
+				case DBTryCommitAction.Merge:
+					summary = "Action upon success: Merge";
+					break;
+				default:
+					summary = "Action upon success: Unknown.";
+					return;
+				}
+
+				if (MonkeyWrench.Scheduler.GITUpdater.ExecuteTryCommit (lane, try_commit, revision, log)) {
+					summary += " (Succeeded).";
+				} else {
+					summary += " (Failed - see attached log for more information).";
+				}
+			} catch (Exception ex) {
+				log.AppendFormat ("Failed: {0}", ex.Message);
+				log.AppendLine ();
+				summary = "Action upon success failed due to exception. See attached log for more information.";
+			}
+		}
+
+		private static void ProcessTryCommit (DBRevisionWork revision_work, DBTryCommit try_commit)
+		{
+			try {
+				Logger.Log ("Notifications.ProcessTryCommit (lane_id: {0} revision_id: {1} host_id: {2} State: {3})", revision_work.lane_id, revision_work.revision_id, revision_work.host_id, revision_work.State);
+				DBLane lane;
+				DBRevision revision;
+				DBHost host;
+				List<DBPerson> people = new List<DBPerson> ();
+				string link;
+				StringBuilder subject = new StringBuilder ();
+				StringBuilder body = new StringBuilder ();
+				StringBuilder body_html = new StringBuilder ();
+				string action_summary;
+				StringBuilder action_log = new StringBuilder ();
+				System.Net.Mail.Attachment action_log_attach;
+				System.Net.Mail.Attachment body_html_attach;
+
+				using (DB db = new DB ()) {
+					revision = DBRevision_Extensions.Create (db, revision_work.revision_id);
+					lane = DBLane_Extensions.Create (db, revision_work.lane_id);
+					host = DBHost_Extensions.Create (db, revision_work.host_id);
+				}
+
+				ExecuteTryCommitAction (revision_work, revision, lane, try_commit, action_log, out action_summary);
+				action_log_attach = System.Net.Mail.Attachment.CreateAttachmentFromString (action_log.ToString (), "action.log", Encoding.UTF8, System.Net.Mime.MediaTypeNames.Text.Plain);
+
+				// Create mail
+
+				subject.Append ("[MonkeyWrench] ");
+				subject.Append (revision_work.State.ToString ());
+				subject.Append (" ");
+				subject.Append (revision.revision);
+				subject.Append ("/");
+				subject.Append (lane.lane);
+				subject.Append ("/");
+				subject.Append (host.host);
+
+				body.AppendLine ("Execution result for:");
+				body.AppendFormat ("    Revision: {0}\n", revision.revision);
+				body.AppendFormat ("    Host: {0}\n", host.host);
+				body.AppendFormat ("    Lane: {0}\n", lane.lane);
+				link = string.Format ("{0}/ViewLane.aspx?lane_id={1}&host_id={2}&revision_id={3}", Configuration.WebSiteUrl, lane.id, host.id, revision.id);
+				body.AppendLine (link);
+				body.AppendLine (action_summary);
+
+				using (System.Net.WebClient wc = new System.Net.WebClient ()) {
+					body_html.Append (wc.DownloadString (link));
+					body_html.Replace ("\"res/default.css\"", string.Format ("'{0}/res/default.css'", Configuration.WebSiteUrl));
+					body_html.Replace ("a href=\"", string.Format ("a href=\"{0}/", Configuration.WebSiteUrl));
+					body_html.Replace ("a href=\'", string.Format ("a href=\'{0}/", Configuration.WebSiteUrl));
+					body_html.Replace (" src=\"", string.Format (" src=\"{0}/", Configuration.WebSiteUrl));
+					body_html.Replace (" src=\'", string.Format (" src=\'{0}/", Configuration.WebSiteUrl));
+					body_html_attach = System.Net.Mail.Attachment.CreateAttachmentFromString (body_html.ToString (), "body.html", Encoding.UTF8, System.Net.Mime.MediaTypeNames.Text.Html);
+					body_html.Length = 0;
+				}
+
+				MonkeyWrench.Scheduler.Scheduler.FindPeopleForCommit (lane, revision, people);
+				SendMail (people, subject, body, body_html, action_log_attach, body_html_attach);
+
+				Logger.Log ("Mail sent successfully");
+			} catch (Exception ex) {
+				Logger.Log ("Exception while processing try commits: {0}", ex.Message);
+			}
+		}
+
+		private static void SendMail (List<DBPerson> people, StringBuilder subject, StringBuilder body, StringBuilder html_body, params System.Net.Mail.Attachment [] attachments)
+		{
+			using (var mail = new System.Net.Mail.MailMessage ()) {
+				mail.From = new System.Net.Mail.MailAddress (Configuration.SMTPUser, "MonkeyWrench");
+				foreach (DBPerson person in people) {
+					foreach (string to in person.Emails) {
+						mail.CC.Add (new System.Net.Mail.MailAddress (to, person.fullname));
+					}
+				}
+				mail.CC.Add (new System.Net.Mail.MailAddress (Configuration.SMTPUser, "MonkeyWrench"));
+				mail.Body = body.ToString ();
+				mail.Subject = subject.ToString ();
+				foreach (var attach in attachments) {
+					if (attach == null)
+						continue;
+					mail.Attachments.Add (attach);
+				}
+				if (html_body.Length > 0)
+					mail.AlternateViews.Add (System.Net.Mail.AlternateView.CreateAlternateViewFromString (html_body.ToString (), System.Text.Encoding.UTF8, System.Net.Mime.MediaTypeNames.Text.Html));
+				SendMail (mail);
+			}
+		}
+
+		private static void SendMail (System.Net.Mail.MailMessage mail)
+		{
+			string host = Configuration.SMTPHost;
+			string port = "25";
+			int c = host.IndexOf (':');
+			if (c >= 0) {
+				port = host.Substring (c + 1);
+				host = host.Substring (0, c);
+			}
+
+			System.Net.Mail.SmtpClient client = new System.Net.Mail.SmtpClient (host, int.Parse (port));
+			client.EnableSsl = true;
+			client.Timeout = 10000;
+			client.DeliveryMethod = System.Net.Mail.SmtpDeliveryMethod.Network;
+			client.UseDefaultCredentials = false;
+			client.Credentials = new System.Net.NetworkCredential (Configuration.SMTPUser, Configuration.SMTPPassword);
+			client.Send (mail);
 		}
 
 		private static void ProcessNotify (DBWork work, DBRevisionWork revision_work)

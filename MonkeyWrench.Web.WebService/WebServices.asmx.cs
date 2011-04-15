@@ -927,6 +927,15 @@ ORDER BY Lanefiles.lane_id, Lanefile.name ASC";
 				for (int i = 0; i < response.WorkViews.Count; i++) {
 					response.WorkFileViews.Add (DBWork_Extensions.GetFiles (db, response.WorkViews [i].id, include_hidden_files));
 				}
+				if (response.RevisionWork != null) {
+					using (IDbCommand cmd = db.CreateCommand ()) {
+						cmd.CommandText = "SELECT * FROM TryCommit WHERE revisionwork_id = " + response.RevisionWork.id + ";";
+						using (IDataReader reader = cmd.ExecuteReader ()) {
+							if (reader.Read ())
+								response.TryCommit = new DBTryCommit (reader);
+						}
+					}
+				}
 			}
 
 			return response;
@@ -2017,9 +2026,10 @@ WHERE Work.revisionwork_id = @revisionwork_id ";
 					DB.CreateParameter (cmd, "lane_id", lane_id);
 					DB.CreateParameter (cmd, "revision_id", revision_id);
 					if (host_id > 0) {
-						cmd.CommandText = " AND host_id = @host_id";
+						cmd.CommandText += " AND host_id = @host_id";
 						DB.CreateParameter (cmd, "host_id", host_id);
 					}
+					cmd.CommandText += ";";
 					using (IDataReader reader = cmd.ExecuteReader ()) {
 						while (reader.Read ())
 							response.RevisionWork.Add (new DBRevisionWork (reader));
@@ -2676,6 +2686,87 @@ WHERE workfile.filename = @filename AND (";
 			return response;
 		}
 
+		[WebMethod]
+		public WebServiceResponse DeleteTryCommit (WebServiceLogin login, int id)
+		{
+			WebServiceResponse response = new WebServiceResponse ();
+			Logger.Log ("DeleteTryCommit: {0}", id);
+			try {
+				using (DB db = new DB ()) {
+					VerifyUserInRole (db, login, Roles.Administrator);
+
+					DBTryCommit_Extensions.Delete (db, id);
+				}
+			} catch (Exception ex) {
+				response.Exception = new WebServiceException (ex);
+			}
+
+			return response;
+		}
+
+		[WebMethod]
+		public AddTryCommitResponse AddTryCommit (WebServiceLogin login, int? lane_id, string lane, string revision, int successful_action, string branch)
+		{
+			AddTryCommitResponse response = new AddTryCommitResponse ();
+			FindRevisionResponse rev;
+			GetRevisionWorkForLaneResponse rwfl;
+			List<DBHostLane> hostlanes;
+			DBTryCommit try_commit;
+			DBRevisionWork rw;
+			List<DBHost> hosts;
+			DBLane l;
+
+			try {
+				using (DB db = new DB ()) {
+					VerifyUserInRole (db, login, Roles.Administrator);
+
+					l = FindLane(db, lane_id, lane);
+					if (l == null)
+						throw new Exception (string.Format ("Could not find the lane '{0}'", lane));
+
+					// Execute scheduler to fetch the revision
+					MonkeyWrench.Scheduler.Scheduler.ExecuteScheduler (false, revision, revision, l.id);
+
+					// Check if the revision is already in the db
+					rev = FindRevisionForLane (login, null, revision, l.id, null);
+					if (rev.Revision == null)
+						throw new Exception (string.Format ("The revision '{0}' could not be found. Are you sure you pushed to the remote server?", revision));
+
+					response.TryCommits = new List<DBTryCommit> ();
+					response.Hosts = new List<DBHost> ();
+
+					hosts = GetHosts (login).Hosts;
+					hostlanes = GetHostLanes (login).HostLanes;
+
+					foreach (DBHostLane hl in hostlanes) {
+						if (hl.lane_id != rev.Revision.lane_id)
+							continue;
+						if (!hl.enabled)
+							continue;
+
+						rwfl = GetRevisionWorkForLane (login, hl.lane_id, rev.Revision.id, hl.host_id);
+						if (rwfl.Exception != null) {
+							response.Exception = rwfl.Exception;
+							return response;
+						}
+						rw = rwfl.RevisionWork [0];
+
+						try_commit = new DBTryCommit ();
+						try_commit.revisionwork_id = rw.id;
+						try_commit.branch = branch;
+						try_commit.successful_action = successful_action;
+						try_commit.Save (db);
+						response.TryCommits.Add (try_commit);
+						response.Hosts.Add (hosts.Find((h) => h.id == hl.host_id));
+					}
+				}
+			} catch (Exception ex) {
+				response.Exception = new WebServiceException (ex);
+			}
+
+			return response;
+		}
+		
 		[WebMethod]
 		public WebServiceResponse AddRelease (WebServiceLogin login, DBRelease release)
 		{

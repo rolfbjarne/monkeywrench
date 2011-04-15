@@ -234,6 +234,23 @@
           </xs:extension>
         </xs:complexContent>
       </xs:complexType>
+      <xs:complexType name="DBTestResult">
+        <xs:complexContent mixed="false">
+          <xs:extension base="s0:DBView">
+            <xs:sequence>
+              <xs:element minOccurs="1" maxOccurs="1" name="workfile_id" type="xs:int" />
+              <xs:element minOccurs="0" maxOccurs="1" name="md5" type="xs:string" />
+              <xs:element minOccurs="0" maxOccurs="1" name="filename" type="xs:string" />
+              <xs:element minOccurs="1" maxOccurs="1" name="command_id" type="xs:int" />
+              <xs:element minOccurs="0" maxOccurs="1" name="revision" type="xs:string" />
+              <xs:element minOccurs="1" maxOccurs="1" name="revisionwork_id" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="lane_id" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="host_id" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="revision_id" type="xs:int" />
+            </xs:sequence>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
       <xs:complexType name="DBHost">
         <xs:complexContent mixed="false">
           <xs:extension base="s0:DBRecord">
@@ -413,6 +430,25 @@
           </xs:extension>
         </xs:complexContent>
       </xs:complexType>
+      <xs:complexType name="DBTryCommit">
+        <xs:complexContent mixed="false">
+          <xs:extension base="s0:DBRecord">
+            <xs:sequence>
+              <xs:element minOccurs="1" maxOccurs="1" name="SuccessfulAction" type="s0:DBTryCommitAction" />
+              <xs:element minOccurs="1" maxOccurs="1" name="revisionwork_id" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="successful_action" type="xs:int" />
+              <xs:element minOccurs="0" maxOccurs="1" name="branch" type="xs:string" />
+            </xs:sequence>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
+      <xs:simpleType name="DBTryCommitAction">
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="None" />
+          <xs:enumeration value="CherryPick" />
+          <xs:enumeration value="Merge" />
+        </xs:restriction>
+      </xs:simpleType>
       <xs:complexType name="DBHostLane">
         <xs:complexContent mixed="false">
           <xs:extension base="s0:DBRecord">
@@ -449,6 +485,7 @@
               <xs:element minOccurs="0" maxOccurs="1" name="filename" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="md5" type="xs:string" />
               <xs:element minOccurs="1" maxOccurs="1" name="file_id" nillable="true" type="xs:int" />
+              <xs:element minOccurs="1" maxOccurs="1" name="write_stamp" type="xs:dateTime" />
               <xs:element minOccurs="0" maxOccurs="1" name="mime" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="compressed_mime" type="xs:string" />
               <xs:element minOccurs="1" maxOccurs="1" name="size" type="xs:int" />
@@ -692,6 +729,7 @@
               <xs:element minOccurs="0" maxOccurs="1" name="RevisionWork" type="s0:DBRevisionWork" />
               <xs:element minOccurs="0" maxOccurs="1" name="WorkViews" type="s0:ArrayOfDBWorkView2" />
               <xs:element minOccurs="0" maxOccurs="1" name="WorkFileViews" type="s0:ArrayOfArrayOfDBWorkFileView" />
+              <xs:element minOccurs="0" maxOccurs="1" name="TryCommit" type="s0:DBTryCommit" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -986,6 +1024,20 @@
           <xs:element minOccurs="0" maxOccurs="unbounded" name="DBMasterHost" nillable="true" type="s0:DBMasterHost" />
         </xs:sequence>
       </xs:complexType>
+      <xs:complexType name="GetTestResultsResponse">
+        <xs:complexContent mixed="false">
+          <xs:extension base="s0:WebServiceResponse">
+            <xs:sequence>
+              <xs:element minOccurs="0" maxOccurs="1" name="Results" type="s0:ArrayOfDBTestResult" />
+            </xs:sequence>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
+      <xs:complexType name="ArrayOfDBTestResult">
+        <xs:sequence>
+          <xs:element minOccurs="0" maxOccurs="unbounded" name="DBTestResult" nillable="true" type="s0:DBTestResult" />
+        </xs:sequence>
+      </xs:complexType>
       <xs:complexType name="GetIdentitiesResponse">
         <xs:complexContent mixed="false">
           <xs:extension base="s0:WebServiceResponse">
@@ -1016,6 +1068,21 @@
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
+      </xs:complexType>
+      <xs:complexType name="AddTryCommitResponse">
+        <xs:complexContent mixed="false">
+          <xs:extension base="s0:WebServiceResponse">
+            <xs:sequence>
+              <xs:element minOccurs="0" maxOccurs="1" name="TryCommits" type="s0:ArrayOfDBTryCommit" />
+              <xs:element minOccurs="0" maxOccurs="1" name="Hosts" type="s0:ArrayOfDBHost" />
+            </xs:sequence>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
+      <xs:complexType name="ArrayOfDBTryCommit">
+        <xs:sequence>
+          <xs:element minOccurs="0" maxOccurs="unbounded" name="DBTryCommit" nillable="true" type="s0:DBTryCommit" />
+        </xs:sequence>
       </xs:complexType>
       <xs:complexType name="GetReleasesResponse">
         <xs:complexContent mixed="false">
@@ -2403,6 +2470,22 @@
           </xs:sequence>
         </xs:complexType>
       </xs:element>
+      <xs:element name="GetTestResults">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="login" type="s0:WebServiceLogin" />
+            <xs:element minOccurs="0" maxOccurs="1" name="revisions" type="s0:ArrayOfString" />
+            <xs:element minOccurs="0" maxOccurs="1" name="filename" type="xs:string" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="GetTestResultsResponse">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="GetTestResultsResult" type="s0:GetTestResultsResponse" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
       <xs:element name="EditIdentity">
         <xs:complexType>
           <xs:sequence>
@@ -2521,6 +2604,40 @@
         <xs:complexType>
           <xs:sequence>
             <xs:element minOccurs="0" maxOccurs="1" name="RemoveLaneNotificationResult" type="s0:WebServiceResponse" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="DeleteTryCommit">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="login" type="s0:WebServiceLogin" />
+            <xs:element minOccurs="1" maxOccurs="1" name="id" type="xs:int" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="DeleteTryCommitResponse">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="DeleteTryCommitResult" type="s0:WebServiceResponse" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="AddTryCommit">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="login" type="s0:WebServiceLogin" />
+            <xs:element minOccurs="1" maxOccurs="1" name="lane_id" nillable="true" type="xs:int" />
+            <xs:element minOccurs="0" maxOccurs="1" name="lane" type="xs:string" />
+            <xs:element minOccurs="0" maxOccurs="1" name="revision" type="xs:string" />
+            <xs:element minOccurs="1" maxOccurs="1" name="successful_action" type="xs:int" />
+            <xs:element minOccurs="0" maxOccurs="1" name="branch" type="xs:string" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="AddTryCommitResponse">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="AddTryCommitResult" type="s0:AddTryCommitResponse" />
           </xs:sequence>
         </xs:complexType>
       </xs:element>
@@ -3183,6 +3300,12 @@
   <message name="FindLatestWorkFileIdSoapOut">
     <part name="parameters" element="s0:FindLatestWorkFileIdResponse" />
   </message>
+  <message name="GetTestResultsSoapIn">
+    <part name="parameters" element="s0:GetTestResults" />
+  </message>
+  <message name="GetTestResultsSoapOut">
+    <part name="parameters" element="s0:GetTestResultsResponse" />
+  </message>
   <message name="EditIdentitySoapIn">
     <part name="parameters" element="s0:EditIdentity" />
   </message>
@@ -3230,6 +3353,18 @@
   </message>
   <message name="RemoveLaneNotificationSoapOut">
     <part name="parameters" element="s0:RemoveLaneNotificationResponse" />
+  </message>
+  <message name="DeleteTryCommitSoapIn">
+    <part name="parameters" element="s0:DeleteTryCommit" />
+  </message>
+  <message name="DeleteTryCommitSoapOut">
+    <part name="parameters" element="s0:DeleteTryCommitResponse" />
+  </message>
+  <message name="AddTryCommitSoapIn">
+    <part name="parameters" element="s0:AddTryCommit" />
+  </message>
+  <message name="AddTryCommitSoapOut">
+    <part name="parameters" element="s0:AddTryCommitResponse" />
   </message>
   <message name="AddReleaseSoapIn">
     <part name="parameters" element="s0:AddRelease" />
@@ -3672,6 +3807,10 @@
       <input message="s0:FindLatestWorkFileIdSoapIn" />
       <output message="s0:FindLatestWorkFileIdSoapOut" />
     </operation>
+    <operation name="GetTestResults">
+      <input message="s0:GetTestResultsSoapIn" />
+      <output message="s0:GetTestResultsSoapOut" />
+    </operation>
     <operation name="EditIdentity">
       <input message="s0:EditIdentitySoapIn" />
       <output message="s0:EditIdentitySoapOut" />
@@ -3703,6 +3842,14 @@
     <operation name="RemoveLaneNotification">
       <input message="s0:RemoveLaneNotificationSoapIn" />
       <output message="s0:RemoveLaneNotificationSoapOut" />
+    </operation>
+    <operation name="DeleteTryCommit">
+      <input message="s0:DeleteTryCommitSoapIn" />
+      <output message="s0:DeleteTryCommitSoapOut" />
+    </operation>
+    <operation name="AddTryCommit">
+      <input message="s0:AddTryCommitSoapIn" />
+      <output message="s0:AddTryCommitSoapOut" />
     </operation>
     <operation name="AddRelease">
       <input message="s0:AddReleaseSoapIn" />
@@ -4114,6 +4261,10 @@
       <input message="s0:FindLatestWorkFileIdSoapIn" />
       <output message="s0:FindLatestWorkFileIdSoapOut" />
     </operation>
+    <operation name="GetTestResults">
+      <input message="s0:GetTestResultsSoapIn" />
+      <output message="s0:GetTestResultsSoapOut" />
+    </operation>
     <operation name="EditIdentity">
       <input message="s0:EditIdentitySoapIn" />
       <output message="s0:EditIdentitySoapOut" />
@@ -4145,6 +4296,14 @@
     <operation name="RemoveLaneNotification">
       <input message="s0:RemoveLaneNotificationSoapIn" />
       <output message="s0:RemoveLaneNotificationSoapOut" />
+    </operation>
+    <operation name="DeleteTryCommit">
+      <input message="s0:DeleteTryCommitSoapIn" />
+      <output message="s0:DeleteTryCommitSoapOut" />
+    </operation>
+    <operation name="AddTryCommit">
+      <input message="s0:AddTryCommitSoapIn" />
+      <output message="s0:AddTryCommitSoapOut" />
     </operation>
     <operation name="AddRelease">
       <input message="s0:AddReleaseSoapIn" />
@@ -5057,6 +5216,15 @@
         <soap:body use="literal" />
       </output>
     </operation>
+    <operation name="GetTestResults">
+      <soap:operation soapAction="http://monkeywrench.novell.com/GetTestResults" style="document" />
+      <input>
+        <soap:body use="literal" />
+      </input>
+      <output>
+        <soap:body use="literal" />
+      </output>
+    </operation>
     <operation name="EditIdentity">
       <soap:operation soapAction="http://monkeywrench.novell.com/EditIdentity" style="document" />
       <input>
@@ -5122,6 +5290,24 @@
     </operation>
     <operation name="RemoveLaneNotification">
       <soap:operation soapAction="http://monkeywrench.novell.com/RemoveLaneNotification" style="document" />
+      <input>
+        <soap:body use="literal" />
+      </input>
+      <output>
+        <soap:body use="literal" />
+      </output>
+    </operation>
+    <operation name="DeleteTryCommit">
+      <soap:operation soapAction="http://monkeywrench.novell.com/DeleteTryCommit" style="document" />
+      <input>
+        <soap:body use="literal" />
+      </input>
+      <output>
+        <soap:body use="literal" />
+      </output>
+    </operation>
+    <operation name="AddTryCommit">
+      <soap:operation soapAction="http://monkeywrench.novell.com/AddTryCommit" style="document" />
       <input>
         <soap:body use="literal" />
       </input>
@@ -6050,6 +6236,15 @@
         <soap12:body use="literal" />
       </output>
     </operation>
+    <operation name="GetTestResults">
+      <soap12:operation soapAction="http://monkeywrench.novell.com/GetTestResults" style="document" />
+      <input>
+        <soap12:body use="literal" />
+      </input>
+      <output>
+        <soap12:body use="literal" />
+      </output>
+    </operation>
     <operation name="EditIdentity">
       <soap12:operation soapAction="http://monkeywrench.novell.com/EditIdentity" style="document" />
       <input>
@@ -6115,6 +6310,24 @@
     </operation>
     <operation name="RemoveLaneNotification">
       <soap12:operation soapAction="http://monkeywrench.novell.com/RemoveLaneNotification" style="document" />
+      <input>
+        <soap12:body use="literal" />
+      </input>
+      <output>
+        <soap12:body use="literal" />
+      </output>
+    </operation>
+    <operation name="DeleteTryCommit">
+      <soap12:operation soapAction="http://monkeywrench.novell.com/DeleteTryCommit" style="document" />
+      <input>
+        <soap12:body use="literal" />
+      </input>
+      <output>
+        <soap12:body use="literal" />
+      </output>
+    </operation>
+    <operation name="AddTryCommit">
+      <soap12:operation soapAction="http://monkeywrench.novell.com/AddTryCommit" style="document" />
       <input>
         <soap12:body use="literal" />
       </input>

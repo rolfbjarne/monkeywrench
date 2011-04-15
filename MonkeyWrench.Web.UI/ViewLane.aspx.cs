@@ -88,6 +88,11 @@ public partial class ViewLane : System.Web.UI.Page
 					if (int.TryParse (Request ["work_id"], out id))
 						Master.WebService.ResumeWork (Master.WebServiceLogin, id);
 					break;
+				case "deletetrycommit":
+					if (int.TryParse (Request ["trycommit_id"], out id))
+						Master.WebService.DeleteTryCommit (Master.WebServiceLogin, id);
+					Response.Redirect ("index.aspx");
+					return;
 				}
 
 				Response.Redirect (string.Format ("ViewLane.aspx?lane_id={0}&host_id={1}&revision_id={2}", lane.id, host.id, revision.id), false);
@@ -125,6 +130,7 @@ public partial class ViewLane : System.Web.UI.Page
 		DBHost host = response.Host;
 		DBRevision revision = response.Revision;
 
+
 		StringBuilder header = new StringBuilder ();
 		header.AppendFormat ("Revision: <a href='GetRevisionLog.aspx?id={0}'>{1}</a>", dbr.id, dbr.revision);
 		header.AppendFormat (" - Status: {0}", revisionwork.State);
@@ -141,6 +147,23 @@ public partial class ViewLane : System.Web.UI.Page
 			header.AppendFormat (" - Assigned to <a href='ViewHostHistory.aspx?host_id={1}'>{0}</a>", response.WorkHost.host, response.WorkHost.id);
 		} else {
 			header.AppendFormat (" - Unassigned.");
+		}
+
+		if (response.TryCommit != null) {
+			header.AppendLine ("<br />");
+			// header.Append ("<b>");
+			header.Append ("Try Commit - ");
+			header.AppendFormat ("Action: {0}", response.TryCommit.SuccessfulAction);
+			if (response.TryCommit.SuccessfulAction != DBTryCommitAction.None)
+				header.AppendFormat (" - Destination Branch: {0}", response.TryCommit.branch);
+			// header.Append ("</b>");
+			if (Authentication.IsInRole (response, MonkeyWrench.DataClasses.Logic.Roles.Administrator)) {
+				if (revisionwork.State == DBState.NotDone || revisionwork.completed) {
+					header.AppendFormat ("- <a href='ViewLane.aspx?lane_id={0}&amp;host_id={2}&amp;revision_id={1}&amp;action=deletetrycommit&amp;trycommit_id={3}'>delete</a>", lane.id, dbr.id, host.id, response.TryCommit.id);
+				} else {
+					header.Append ("- (executing, can't delete)");
+				}
+			}
 		}
 
 		if (!revisionwork.completed && revisionwork.State != DBState.NotDone && revisionwork.State != DBState.Paused) {

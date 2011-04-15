@@ -54,6 +54,7 @@
     <Content Include="BuildBotStatus.aspx" />
     <Content Include="BuildBotStatus.js" />
     <Content Include="clientaccesspolicy.xml" />
+    <Content Include="TryCommit.aspx" />
     <Content Include="DownloadLatestFile.aspx" />
     <Content Include="Identities.aspx" />
     <Content Include="Master.js" />
@@ -126,6 +127,13 @@
     </Compile>
     <Compile Include="BuildBotStatus.aspx.designer.cs">
       <DependentUpon>BuildBotStatus.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="TryCommit.aspx.cs">
+      <DependentUpon>TryCommit.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="TryCommit.aspx.designer.cs">
+      <DependentUpon>TryCommit.aspx</DependentUpon>
     </Compile>
     <Compile Include="DownloadLatestFile.aspx.cs">
       <DependentUpon>DownloadLatestFile.aspx</DependentUpon>

@@ -91,14 +91,20 @@ namespace MonkeyWrench.Scheduler
 
 		public static bool ExecuteScheduler (bool forcefullupdate)
 		{
+			return ExecuteScheduler (forcefullupdate, null, null, null);
+		}
+
+
+		public static bool ExecuteScheduler (bool forcefullupdate, string min_revision, string max_revision, int? lane_id)
+		{
 			bool result = true;
 			do {
-				result = ExecuteSchedulerInternal (forcefullupdate) && result;
+				result = ExecuteSchedulerInternal (forcefullupdate, min_revision, max_revision, lane_id) && result;
 			} while (result && is_execution_pending);
 			return result;
 		}
 
-		private static bool ExecuteSchedulerInternal (bool forcefullupdate)
+		private static bool ExecuteSchedulerInternal (bool forcefullupdate, string min_revision, string max_revision, int? lane_id)
 		{
 			DateTime start;
 			Lock scheduler_lock = null;
@@ -130,13 +136,17 @@ namespace MonkeyWrench.Scheduler
 					hosts = db.GetHosts ();
 					hostlanes = db.GetAllHostLanes ();
 
-					Logger.Log ("Updater will now update {0} lanes.", lanes.Count);
+					Logger.Log ("Updater will now update {0} lanes. min revision: {1} max revision: {2}", lane_id.HasValue ? 1 : lanes.Count, min_revision, max_revision);
 
 					GITUpdater git_updater = null;
 					SVNUpdater svn_updater = null;
 
 					foreach (DBLane lane in lanes) {
 						SchedulerBase updater;
+
+						if (lane_id.HasValue && lane.id != lane_id.Value)
+							continue;
+
 						switch (lane.source_control) {
 						case "svn":
 							if (svn_updater == null)
@@ -154,7 +164,7 @@ namespace MonkeyWrench.Scheduler
 						}
 						updater.Clear ();
 						updater.AddChangeSets (reports);
-						updater.UpdateRevisionsInDB (db, lane, hosts, hostlanes);
+						updater.UpdateRevisionsInDB (db, lane, hosts, hostlanes, min_revision, max_revision);
 					}
 
 					AddRevisionWork (db);

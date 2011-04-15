@@ -126,6 +126,9 @@
     <Compile Include="Database\DBRevisionWorkView2.generated.cs" />
     <Compile Include="Database\DBState.cs" />
     <Compile Include="Database\DBTestResult.generated.cs" />
+    <Compile Include="Database\DBTryCommit.cs" />
+    <Compile Include="Database\DBTryCommit.generated.cs" />
+    <Compile Include="Database\DBTryCommitAction.cs" />
     <Compile Include="Database\DBUserEmail.cs" />
     <Compile Include="Database\DBUserEmail.generated.cs" />
     <Compile Include="Database\DBView.cs" />
@@ -137,6 +140,7 @@
     <Compile Include="Database\DBWorkFileView.generated.cs" />
     <Compile Include="Database\DBWorkView2.cs" />
     <Compile Include="Database\DBWorkView2.generated.cs" />
+    <Compile Include="Logic\AddTryCommitResponse.cs" />
     <Compile Include="Logic\BuildBotStatus.cs" />
     <Compile Include="Logic\BuildInfoEntry.cs" />
     <Compile Include="Logic\GetBuildBotStatusResponse.cs" />

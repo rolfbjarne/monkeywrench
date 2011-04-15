@@ -109,9 +109,9 @@ CREATE TABLE LaneDeletionDirective (
 
 CREATE TABLE LaneDependency (
 	id                serial     PRIMARY KEY,
-	lane_id           int        NOT NULL REFERENCES Lane(id), -- the lane we're configuring
-	dependent_lane_id int        NOT NULL REFERENCES Lane(id), -- the lane we're depending on
-	dependent_host_id int        NULL REFERENCES Host(id),     -- the host used to satisfy the condition (null to include all hosts)
+	lane_id           int        NOT NULL REFERENCES Lane(id) ON DELETE CASCADE, -- the lane we're configuring
+	dependent_lane_id int        NOT NULL REFERENCES Lane(id) ON DELETE CASCADE, -- the lane we're depending on
+	dependent_host_id int        NULL REFERENCES Host(id) ON DELETE CASCADE,     -- the host used to satisfy the condition (null to include all hosts)
 	condition         int        NOT NULL,                     -- the condition
 	                                                           -- 0: no condition at all
 	                                                           -- 1: dependent_lane_id has succeeded (for the same revision)
@@ -353,6 +353,14 @@ CREATE TABLE BuildBotStatus (
 	version        text      NOT NULL DEFAULT '',
 	description    text      NOT NULL DEFAULT '',
 	report_date    timestamp NOT NULL DEFAULT now ()
+);
+
+CREATE TABLE TryCommit (
+	id                serial    PRIMARY KEY,
+	revisionwork_id   int       NOT NULL REFERENCES RevisionWork (id) ON DELETE CASCADE,
+	successful_action int       NOT NULL DEFAULT 0,  -- 0 = None, 1 = Cherry-pick, 2 = Merge
+	branch            text      NOT NULL DEFAULT '', -- the branch the successful action will be used for the successful action
+	UNIQUE (revisionwork_id)
 );
 
 CREATE VIEW WorkView2 AS 

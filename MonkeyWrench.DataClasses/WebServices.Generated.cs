@@ -2262,6 +2262,30 @@ namespace MonkeyWrench.Web.WebServices {
         }
         
         /// <remarks/>
+        [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/GetTestResults", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
+        public GetTestResultsResponse GetTestResults(WebServiceLogin login, string[] revisions, string filename) {
+            object[] results = this.Invoke("GetTestResults", new object[] {
+                        login,
+                        revisions,
+                        filename});
+            return ((GetTestResultsResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        public System.IAsyncResult BeginGetTestResults(WebServiceLogin login, string[] revisions, string filename, System.AsyncCallback callback, object asyncState) {
+            return this.BeginInvoke("GetTestResults", new object[] {
+                        login,
+                        revisions,
+                        filename}, callback, asyncState);
+        }
+        
+        /// <remarks/>
+        public GetTestResultsResponse EndGetTestResults(System.IAsyncResult asyncResult) {
+            object[] results = this.EndInvoke(asyncResult);
+            return ((GetTestResultsResponse)(results[0]));
+        }
+        
+        /// <remarks/>
         [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/EditIdentity", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
         public WebServiceResponse EditIdentity(WebServiceLogin login, DBIrcIdentity irc_identity, DBEmailIdentity email_identity) {
             object[] results = this.Invoke("EditIdentity", new object[] {
@@ -2437,6 +2461,58 @@ namespace MonkeyWrench.Web.WebServices {
         public WebServiceResponse EndRemoveLaneNotification(System.IAsyncResult asyncResult) {
             object[] results = this.EndInvoke(asyncResult);
             return ((WebServiceResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/DeleteTryCommit", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
+        public WebServiceResponse DeleteTryCommit(WebServiceLogin login, int id) {
+            object[] results = this.Invoke("DeleteTryCommit", new object[] {
+                        login,
+                        id});
+            return ((WebServiceResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        public System.IAsyncResult BeginDeleteTryCommit(WebServiceLogin login, int id, System.AsyncCallback callback, object asyncState) {
+            return this.BeginInvoke("DeleteTryCommit", new object[] {
+                        login,
+                        id}, callback, asyncState);
+        }
+        
+        /// <remarks/>
+        public WebServiceResponse EndDeleteTryCommit(System.IAsyncResult asyncResult) {
+            object[] results = this.EndInvoke(asyncResult);
+            return ((WebServiceResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/AddTryCommit", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
+        public AddTryCommitResponse AddTryCommit(WebServiceLogin login, [System.Xml.Serialization.XmlElementAttribute(IsNullable=true)] System.Nullable<int> lane_id, string lane, string revision, int successful_action, string branch) {
+            object[] results = this.Invoke("AddTryCommit", new object[] {
+                        login,
+                        lane_id,
+                        lane,
+                        revision,
+                        successful_action,
+                        branch});
+            return ((AddTryCommitResponse)(results[0]));
+        }
+        
+        /// <remarks/>
+        public System.IAsyncResult BeginAddTryCommit(WebServiceLogin login, System.Nullable<int> lane_id, string lane, string revision, int successful_action, string branch, System.AsyncCallback callback, object asyncState) {
+            return this.BeginInvoke("AddTryCommit", new object[] {
+                        login,
+                        lane_id,
+                        lane,
+                        revision,
+                        successful_action,
+                        branch}, callback, asyncState);
+        }
+        
+        /// <remarks/>
+        public AddTryCommitResponse EndAddTryCommit(System.IAsyncResult asyncResult) {
+            object[] results = this.EndInvoke(asyncResult);
+            return ((AddTryCommitResponse)(results[0]));
         }
         
         /// <remarks/>

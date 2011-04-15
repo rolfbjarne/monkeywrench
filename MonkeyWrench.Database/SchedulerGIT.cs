@@ -25,10 +25,11 @@ using MonkeyWrench.DataClasses;
 
 namespace MonkeyWrench.Scheduler
 {
-	class GITUpdater : SchedulerBase
+	public class GITUpdater : SchedulerBase
 	{
 		/* Save a list of fetches done, to not duplicate work when there are several lanes with the same repository */
 		private List<string> fetched_directories = new List<string> ();
+		private static object commit_lock = new object ();
 
 		class GitEntry
 		{
@@ -97,27 +98,38 @@ namespace MonkeyWrench.Scheduler
 			}
 		}
 
-		protected override bool UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository, Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision)
+		protected override void UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository, Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
 		{
-			string max_revision = "remotes/origin/master";
 			string revision;
-			bool update_steps = false;
 			List<DateTime> used_dates;
 			DBRevision r;
 			List<GitEntry> log;
+			bool only_update_cache;
 
-			Log ("Updating lane: '{0}', repository: '{1}'", lane.lane, repository);
+			Log ("Updating lane: '{0}', repository: '{1}' min_revision: {2} max_revision: {3}", lane.lane, repository, min_revision, max_revision);
 
 			if (string.IsNullOrEmpty (min_revision) && !string.IsNullOrEmpty (lane.min_revision))
 				min_revision = lane.min_revision;
-			if (!string.IsNullOrEmpty (lane.max_revision))
+
+			if (string.IsNullOrEmpty (max_revision) && !string.IsNullOrEmpty (lane.max_revision))
 				max_revision = lane.max_revision;
 
-			log = GetGITLog (lane, repository, min_revision, max_revision);
+			if (string.IsNullOrEmpty (max_revision))
+				max_revision = "remotes/origin/master";
+
+			only_update_cache = max_revision == "None";
+
+			log = GetGITLog (lane, repository, min_revision, max_revision, only_update_cache);
+
+
+			if (only_update_cache) {
+				Log ("Only updated cache, not fetching more revisions for '{0}' since max_revision = 'None'", lane.lane);
+				return;
+			}
 
 			if (log == null || log.Count == 0) {
 				Log ("Didn't get a git log for '{0}'", repository);
-				return false;
+				return;
 			}
 
 			Log ("Got {0} log records", log.Count);
@@ -176,7 +188,7 @@ namespace MonkeyWrench.Scheduler
 						revisions [revision].date = date;
 						revisions [revision].Save (db);
 						Log ("Detected wrong date in revision '{0}' in lane '{1}' in repository {2}, fixing it", revision, lane.lane, repository);
-				}
+					}
 					Log (2, "Already got {0}", revision);
 					continue;
 				}
@@ -206,11 +218,10 @@ namespace MonkeyWrench.Scheduler
 
 				r.Save (db);
 
-				update_steps = true;
 				Log (1, "Saved revision '{0}' for lane '{1}' author: {2}, date: {3:yyyy/MM/dd HH:mm:ss.ffffff} {5} {6}", r.revision, lane.lane, r.author, r.date, msg, unix_timestamp, unix_timestamp_str);
 			}
 
-			return update_steps;
+			return;
 		}
 
 		private bool DoesFilterExclude (GitEntry entry, string filter)
@@ -313,7 +324,7 @@ namespace MonkeyWrench.Scheduler
 			}
 		}
 
-		private List<GitEntry> GetGITLog (DBLane dblane, string repository, string min_revision, string max_revision)
+		private List<GitEntry> GetGITLog (DBLane dblane, string repository, string min_revision, string max_revision, bool only_update_cache)
 		{
 			List<GitEntry> result = null;
 
@@ -372,11 +383,14 @@ namespace MonkeyWrench.Scheduler
 					}
 				}
 
+				if (only_update_cache)
+					return null;
+
 				string range = string.Empty;
 				if (string.IsNullOrEmpty (min_revision)) {
 					range = max_revision;
 				} else {
-					range = min_revision + ".." + max_revision;
+					range = min_revision + "^.." + max_revision;
 				}
 
 				using (Process git = new Process ()) {
@@ -543,5 +557,125 @@ namespace MonkeyWrench.Scheduler
 			}
 		}
 
+		public static bool ExecuteTryCommit (DBLane lane, DBTryCommit try_commit, DBRevision revision, StringBuilder log)
+		{
+			string action;
+			string arguments;
+			string working_dir;
+			string tmp_branch;
+
+			if (string.IsNullOrEmpty (try_commit.branch)) {
+				log.AppendLine ("No destination branch specified.");
+				return false; 
+			}
+
+			try {
+				lock (commit_lock) {
+					working_dir = Configuration.GetTryCommitCacheDirectory (lane.repository);
+
+					if (!Directory.Exists (working_dir))
+						Directory.CreateDirectory (working_dir);
+
+					// Download/update the cache
+					action = "fetch/update repository";
+					if (!Directory.Exists (Path.Combine (working_dir, ".git"))) {
+						arguments = "clone --no-checkout " + lane.repository + " .";
+					} else {
+						arguments = "fetch";
+					}
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+
+					// Checkout a local branch tracking the remote destination branch
+					action = "checkout local branch";
+					tmp_branch = string.Format ("try-commit-branch-{0}", DateTime.Now.Ticks);
+					arguments = string.Format ("checkout --force -b {0} --track remotes/origin/{1}", tmp_branch, try_commit.branch);
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+
+					// Do the actual cherry-pick/merge
+					switch (try_commit.SuccessfulAction) {
+					case DBTryCommitAction.CherryPick:
+						action = "cherry pick";
+						arguments = string.Format ("cherry-pick {0}", revision.revision);
+						break;
+					case DBTryCommitAction.Merge:
+						action = "merge";
+						arguments = string.Format ("merge {0}", revision.revision);
+						break;
+					default:
+						log.AppendLine ("Unknown action: " + try_commit.SuccessfulAction);
+						return false;
+					}
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+
+					// Push to remote server
+					action = "push";
+					arguments = string.Format ("push origin HEAD:{0}", try_commit.branch);
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+
+					// Move to another branch
+					action = "checkout another branch";
+					arguments = "checkout master";
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+
+					// Delete the branch we created
+					action = "delete temporary branch";
+					arguments = "branch -D " + tmp_branch;
+					if (!Git (working_dir, arguments, log, action))
+						return false;
+				}
+				return true;
+			} catch (Exception ex) {
+				log.AppendLine (ex.ToString ());
+				return false;
+			}
+		}
+
+		private static bool Git (string working_dir, string arguments, StringBuilder log, string action)
+		{
+			using (Process git = new Process ()) {
+				DateTime git_start = DateTime.Now;
+				git.StartInfo.FileName = "git";
+				git.StartInfo.Arguments = arguments;
+				git.StartInfo.WorkingDirectory = working_dir;
+				git.StartInfo.UseShellExecute = false;
+				git.StartInfo.RedirectStandardOutput = true;
+				git.StartInfo.RedirectStandardError = true;
+				log.AppendFormat ("Executing " + action + ": '{0} {1}' in {2}\n", git.StartInfo.FileName, git.StartInfo.Arguments, working_dir);
+				git.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e)
+				{
+					if (e.Data == null)
+						return;
+					log.AppendFormat ("STDOUT: {0}\n", e.Data);
+				};
+				git.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e)
+				{
+					if (e.Data == null)
+						return;
+					log.AppendFormat ("STDERR: {0}\n", e.Data);
+				};
+				git.Start ();
+				git.BeginOutputReadLine ();
+				git.BeginErrorReadLine ();
+
+				if (!git.WaitForExit (1000 * 60 * 10 /* 10 minutes */)) {
+					log.AppendFormat ("Could not " + action + ", git didn't finish in 10 minutes.\n");
+					return false;
+				}
+
+				if (!git.HasExited || git.ExitCode != 0) {
+					log.AppendFormat ("Could not " + action + ", HasExited: {0}, ExitCode: {1}\n", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A");
+					return false;
+				}
+
+				log.AppendFormat ("Completed " + action + " in {0} seconds.\n", (DateTime.Now - git_start).TotalSeconds);
+			}
+
+			return true;
+		}
 	}
 }

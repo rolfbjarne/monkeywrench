@@ -104,7 +104,7 @@ namespace MonkeyWrench.Scheduler
 			}
 		}
 
-		protected abstract bool UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository, Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision);
+		protected abstract void UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository, Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision);
 
 		protected abstract int CompareRevisions (string repository, string a, string b);
 
@@ -155,22 +155,13 @@ namespace MonkeyWrench.Scheduler
 
 			return min_revision != null;
 		}
-		/// <summary>
-		/// This method must return true if a revision was added to the database.
-		/// </summary>
-		/// <param name="db"></param>
-		/// <param name="lane"></param>
-		/// <param name="hosts"></param>
-		/// <param name="hostlanes"></param>
-		/// <returns></returns>
-		public bool UpdateRevisionsInDB (DB db, DBLane lane, List<DBHost> hosts, List<DBHostLane> hostlanes)
+
+		public void UpdateRevisionsInDB (DB db, DBLane lane, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
 		{
 			Dictionary<string, DBRevision> revisions;
-			bool update_steps = false;
-			string min_revision = null;
 			bool skip_lane;
 
-			Log ("Updating '{0}', ForceFullUpdate: {1}", lane.lane, ForceFullUpdate);
+			Log ("Updating '{0}', ForceFullUpdate: {1} min_revision: {2} max_revision: {3}", lane.lane, ForceFullUpdate, min_revision, max_revision);
 
 			try {
 				// Skip lanes which aren't configured/enabled on any host completely.
@@ -183,27 +174,25 @@ namespace MonkeyWrench.Scheduler
 				}
 				if (skip_lane) {
 					Log ("Skipping lane {0}, not enabled or configured on any host.", lane.lane);
-					return false;
+					return;
 				}
 
 				// check for commit reports
-				if (!HasCommits (lane, out min_revision)) {
+				if (string.IsNullOrEmpty (min_revision) && !HasCommits (lane, out min_revision)) {
 					Log ("Skipping lane {0}, no commits.", lane.lane);
-					return false;
+					return;
 				}
 
 				revisions = db.GetDBRevisions (lane.id);
 
 				foreach (string repository in lane.repository.Split (new char [] { ',' }, StringSplitOptions.RemoveEmptyEntries)) {
-					UpdateRevisionsInDBInternal (db, lane, repository, revisions, hosts, hostlanes, min_revision);
+					UpdateRevisionsInDBInternal (db, lane, repository, revisions, hosts, hostlanes, min_revision, max_revision);
 				}
 
-				Log ("Updating db for lane '{0}'... [Done], update_steps: {1}", lane.lane, update_steps);
+				Log ("Updating db for lane '{0}'... [Done]", lane.lane);
 			} catch (Exception ex) {
 				Log ("There was an exception while updating db for lane '{0}': {1}", lane.lane, ex.ToString ());
 			}
-
-			return update_steps;
 		}
 	}
 }

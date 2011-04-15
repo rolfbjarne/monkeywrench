@@ -47,6 +47,11 @@ namespace MonkeyWrench
 		public static string IRCLocalEndPoint = string.Empty;
 		public static long MaxLogSize = 1024 * 1024 * 100; // 100MB
 
+		// mail configuration
+		public static string SMTPHost;
+		public static string SMTPUser;
+		public static string SMTPPassword;
+
 		//the following are used by the database manager.
 		public static bool CleanLargeObjects;
 		public static bool CompressFiles;
@@ -180,6 +185,9 @@ namespace MonkeyWrench
 				UploadPort = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/UploadPort").GetNodeValue (UploadPort.ToString ()));
 				IRCLocalEndPoint = xml.SelectSingleNode ("MonkeyWrench/Configuration/IRCLocalEndPoint").GetNodeValue (IRCLocalEndPoint);
 				MaxLogSize = long.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/MaxLogSize").GetNodeValue (MaxLogSize.ToString ()));
+				SMTPHost = xml.SelectSingleNode ("MonkeyWrench/Configuration/SMTPHost").GetNodeValue (null);
+				SMTPUser = xml.SelectSingleNode ("MonkeyWrench/Configuration/SMTPUser").GetNodeValue (null);
+				SMTPPassword = xml.SelectSingleNode ("MonkeyWrench/Configuration/SMTPPassword").GetNodeValue (null);
 
 				// override from command line
 
@@ -209,6 +217,9 @@ namespace MonkeyWrench
 					{"uploadport=", v => UploadPort = int.Parse (v.Trim ())},
 					{"irclocalendpoint=", v => IRCLocalEndPoint = v},
 					{"maxlogsize=", v => MaxLogSize = long.Parse (v.Trim ())},
+					{"smtphost=", v => SMTPHost = v},
+					{"smtpuser=", v => SMTPUser = v},
+					{"smtppassword=", v => SMTPPassword = v},
 
 					// values for the database manager
 					{"compress-files", v => CompressFiles = true},
@@ -463,6 +474,11 @@ namespace MonkeyWrench
 		public static string GetSchedulerRepositoryCacheDirectory (string repository)
 		{
 			return Path.Combine (Path.Combine (DataDirectory, "SchedulerCache"), repository.Replace (':', '_').Replace ('/', '_').Replace ('\\', '_'));
+		}
+
+		public static string GetTryCommitCacheDirectory (string repository)
+		{
+			return Path.Combine (Path.Combine (DataDirectory, "TryCommitCache"), repository.Replace (':', '_').Replace ('/', '_').Replace ('\\', '_'));
 		}
 
 		/// <summary>

@@ -46,11 +46,10 @@ namespace MonkeyWrench.Scheduler
 			return aa == bb ? 0 : ((aa < bb) ? -1 : 1);
 		}
 
-		protected override bool UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository,Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision)
+		protected override void UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository,Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
 		{
 			string revision;
 			XmlDocument svn_log;
-			bool update_steps = false;
 			DBRevision r;
 			int min_revision_int = string.IsNullOrEmpty (min_revision) ? 0 : int.Parse (min_revision);
 			int max_revision_int = int.MaxValue;
@@ -70,7 +69,7 @@ namespace MonkeyWrench.Scheduler
 
 			if (string.IsNullOrEmpty (log)) {
 				Log ("Didn't get a svn log for '{0}'", repository);
-				return false;
+				return;
 			}
 
 			svn_log = new XmlDocument ();
@@ -129,12 +128,8 @@ namespace MonkeyWrench.Scheduler
 				}
 
 				r.Save (db);
-
-				update_steps = true;
 				Log ("Saved revision '{0}' for lane '{1}'", r.revision, lane.lane);
 			}
-
-			return update_steps;
 		}
 
 		private string GetSVNLog (DBLane dblane, string repository, int min_revision, int max_revision)
