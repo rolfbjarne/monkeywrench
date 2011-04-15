@@ -77,6 +77,7 @@ namespace MonkeyWrench.Database
 		{
 			using (IDbTransaction transaction = db.BeginTransaction ()) {
 				using (IDbCommand cmd = db.CreateCommand ()) {
+					cmd.Transaction = transaction;
 					cmd.CommandText = @"
 DELETE FROM RevisionWork WHERE host_id = @id;
 DELETE FROM RevisionWork WHERE workhost_id = @id;
