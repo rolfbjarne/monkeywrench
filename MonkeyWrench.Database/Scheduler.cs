@@ -122,8 +122,6 @@ namespace MonkeyWrench.Scheduler
 				is_execution_pending = false;
 				start = DateTime.Now;
 
-				SVNUpdater.StartDiffThread ();
-
 				// Check reports
 				reports = GetReports (forcefullupdate);
 
@@ -165,8 +163,6 @@ namespace MonkeyWrench.Scheduler
 				}
 
 				Logger.Log ("Update done, waiting for diff thread to finish...");
-
-				SVNUpdater.StopDiffThread ();
 
 				Logger.Log ("Update finished successfully in {0} seconds.", (DateTime.Now - start).TotalSeconds);
 
