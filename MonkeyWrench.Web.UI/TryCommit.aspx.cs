@@ -33,7 +33,6 @@ public partial class TryCommit : System.Web.UI.Page
 
 	private void Report (string message)
 	{
-		Logger.Log ("TryCommit.Report ({0}) text output: {1}", message, text_output);
 		if (!text_output) {
 			lblMessage.Text = message;
 		} else {
@@ -43,7 +42,6 @@ public partial class TryCommit : System.Web.UI.Page
 			Response.Close ();
 			Context.ApplicationInstance.CompleteRequest ();
 		}
-		Logger.Log ("TryCommit.Report ({0}) text output: {1} [Done]", message, text_output);
 	}
 
 	protected override void OnLoad (EventArgs e)
@@ -53,9 +51,7 @@ public partial class TryCommit : System.Web.UI.Page
 		base.OnLoad (e);
 
 		text_output = !string.IsNullOrEmpty (output) && output == "text";
-
-		Logger.Log ("TryCommit.OnLoad () text output: {0}", text_output);
-
+		
 		try {
 			GetLanesResponse lanes;
 			string lane = Request ["lane"];
