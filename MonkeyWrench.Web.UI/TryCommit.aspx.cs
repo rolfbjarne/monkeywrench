@@ -61,10 +61,27 @@ public partial class TryCommit : System.Web.UI.Page
 			int? lane_id = null;
 			int tmp;
 
+			if (!string.IsNullOrEmpty (Request ["action"])) {
+				switch (Request ["action"].ToLowerInvariant ()) {
+				case "0":
+				case "none":
+					action = 0;
+					break;
+				case "1":
+				case "cherrypick":
+				case "cherry-pick":
+				case "pick":
+					action = 1;
+					break;
+				case "2":
+				case "merge":
+					action = 2;
+					break;
+				}
+			}
+
 			if (int.TryParse (Request ["lane_id"], out tmp))
 				lane_id = tmp;
-			if (int.TryParse (Request ["action"], out tmp))
-				action = tmp;
 
 			if (text_output) {
 				Master.WebServiceLogin.Password = Request ["password"];
