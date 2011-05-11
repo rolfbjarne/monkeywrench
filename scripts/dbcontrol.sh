@@ -97,7 +97,7 @@ case "$1" in
 		;;
 esac
 
-CONFIGURATION_TABLES="host masterhost lane environmentvariable filedeletiondirective lanedeletiondirective lanedependency command hostlane lanefile lanefiles person"
+CONFIGURATION_TABLES="release host masterhost lane environmentvariable filedeletiondirective lanedeletiondirective lanedependency command hostlane lanefile lanefiles person useremail ircidentity emailidentity notification lanenotification buildbotstatus"
 
 # do the work
 case "$CMD" in
