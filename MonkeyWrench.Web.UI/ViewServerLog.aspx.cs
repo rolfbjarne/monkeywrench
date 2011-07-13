@@ -1,4 +1,4 @@
-﻿/*
+/*
  * ViewServerLog.aspx.cs
  *
  * Authors:
@@ -40,9 +40,12 @@ public partial class ViewServerLog : System.Web.UI.Page
 				return;
 			}
 
-			long max_length = 4096;
+			long max_length = 32768;
 
 			long.TryParse (Request ["maxlength"], out max_length);
+
+			if (max_length == 0)
+				max_length = 32768;
 
 			using (FileStream fs = new FileStream (MonkeyWrench.Configuration.LogFile, FileMode.Open, FileAccess.Read)) {
 				max_length = Math.Min (max_length, (long) fs.Length);
