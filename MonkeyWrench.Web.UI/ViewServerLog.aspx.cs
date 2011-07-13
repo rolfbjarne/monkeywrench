@@ -40,11 +40,19 @@ public partial class ViewServerLog : System.Web.UI.Page
 				return;
 			}
 
+			long max_length = 4096;
+
+			long.TryParse (Request ["maxlength"], out max_length);
+
 			using (FileStream fs = new FileStream (MonkeyWrench.Configuration.LogFile, FileMode.Open, FileAccess.Read)) {
-				fs.Seek (fs.Length > 4096 ? fs.Length - 4096 : 0, SeekOrigin.Begin);
+				max_length = Math.Min (max_length, (long) fs.Length);
+				fs.Seek (fs.Length - max_length, SeekOrigin.Begin);
 				using (StreamReader reader = new StreamReader (fs)) {
+					if (fs.Position > 0)
+						reader.ReadLine (); // skip the first (partial)
 					divLog.Text = reader.ReadToEnd ().Replace ("\n", "<br/>").Replace ("\r", "").Replace (" ", "&nbsp;");
 				}
+				lblLength.Text = string.Format ("Showing the last {0} bytes in the log file", max_length);
 			}
 		} catch (Exception ex) {
 			divLog.Text = Utils.FormatException (ex, true);
