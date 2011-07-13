@@ -1,4 +1,4 @@
-<%@ Master Language="C#" AutoEventWireup="True" Inherits="Master" CodeBehind="Master.master.cs" EnableViewState="false" %>
+﻿<%@ Master Language="C#" AutoEventWireup="True" Inherits="Master" CodeBehind="Master.master.cs" EnableViewState="false" %>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 
@@ -15,27 +15,27 @@
     <div id="siteheader">
         <asp:Table runat="server" CssClass='headertable' ID="tableHeader">
             <asp:TableRow>
-                <asp:TableCell RowSpan="3" CssClass="titleimage"><a href="index.aspx"><img id="imgLogo" runat="server" alt="logo" src="res/logo.png" /></a></asp:TableCell>
-                <asp:TableCell RowSpan="3" CssClass="title"><a href="index.aspx">MonkeyWrench</a></asp:TableCell>
+                <asp:TableCell RowSpan="3" CssClass="titleimage"><a runat="server" href="~/index.aspx"><img id="imgLogo" runat="server" alt="logo" src="res/logo.png" /></a></asp:TableCell>
+                <asp:TableCell RowSpan="3" CssClass="title"><a href="~/index.aspx" runat="server">MonkeyWrench</a></asp:TableCell>
                 <asp:TableCell ID="cellLogin" runat="server" CssClass="rightcolumn" />
             </asp:TableRow>
             <asp:TableRow>
-                <asp:TableCell runat="server" CssClass="rightcolumn"><a href="doc/index.html">Help</a></asp:TableCell>
+                <asp:TableCell runat="server" CssClass="rightcolumn"><a href="~/doc/index.aspx" runat="server">Help</a></asp:TableCell>
             </asp:TableRow>
             <asp:TableRow ID="rowAdmin" runat="server">
                 <asp:TableCell id="cellAdmin" runat="server" CssClass="rightcolumn">
                     <div id="adminmenu">
                         <a href='Admin.aspx'>Administration</a>
                         <ul>
-                            <li class="adminitem"><a href='EditHosts.aspx'>Edit Hosts</a></li> 
-                            <li class="adminitem"><a href='EditLanes.aspx'>Edit Lanes</a></li> 
-                            <li class="adminitem"><a href='Users.aspx'>Edit Users</a></li> 
-                            <li class="adminitem"><a href='Identities.aspx'>Edit Identities</a></li> 
-                            <li class="adminitem"><a href='Notifications.aspx'>Edit Notifications</a></li> 
-                            <li class="adminitem"><a href='Admin.aspx?action=schedule'>Execute scheduler (full update)</a></li>
-                            <li class="adminitem"><a href="BuildBotStatus.aspx">View BuildBot status</a></li>
-                            <li class="adminitem"><a href="Releases.aspx">View MonkeyWrench releases</a></li>
-                            <li class="adminitem"><a href="ViewServerLog.aspx">View Server Log</a></li>
+                            <li class="adminitem"><a runat="server" href='~/EditHosts.aspx'>Edit Hosts</a></li> 
+                            <li class="adminitem"><a runat="server" href='~/EditLanes.aspx'>Edit Lanes</a></li> 
+                            <li class="adminitem"><a runat="server" href='~/Users.aspx'>Edit Users</a></li> 
+                            <li class="adminitem"><a runat="server" href='~/Identities.aspx'>Edit Identities</a></li> 
+                            <li class="adminitem"><a runat="server" href='~/Notifications.aspx'>Edit Notifications</a></li> 
+                            <li class="adminitem"><a runat="server" href='~/Admin.aspx?action=schedule'>Execute scheduler (full update)</a></li>
+                            <li class="adminitem"><a runat="server" href="~/BuildBotStatus.aspx">View BuildBot status</a></li>
+                            <li class="adminitem"><a runat="server" href="~/Releases.aspx">View MonkeyWrench releases</a></li>
+                            <li class="adminitem"><a runat="server" href="~/ViewServerLog.aspx">View Server Log</a></li>
                             <li class="adminitem"></li>
                         </ul> 
                     </div>

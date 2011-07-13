@@ -60,19 +60,19 @@ public partial class Master : System.Web.UI.MasterPage
 	{
 		LoadView ();
 		if (!string.IsNullOrEmpty (Configuration.SiteSkin)) {
-			idFavicon.Href = "res/" + Configuration.SiteSkin + "/favicon.ico";
-			imgLogo.Src = "res/" + Configuration.SiteSkin + "/logo.png";
-			cssSkin.Href = "res/" + Configuration.SiteSkin + "/" + Configuration.SiteSkin + ".css";
+			idFavicon.Href = "~/res/" + Configuration.SiteSkin + "/favicon.ico";
+			imgLogo.Src = "~/res/" + Configuration.SiteSkin + "/logo.png";
+			cssSkin.Href = "~/res/" + Configuration.SiteSkin + "/" + Configuration.SiteSkin + ".css";
 		}
 	}
 
 	private void LoadView ()
 	{
 		if (!Authentication.IsLoggedIn (response)) {
-			cellLogin.Text = "<a href='User.aspx'>Create account</a> <a href='Login.aspx'>Login</a>";
+			cellLogin.Text = string.Format ("<a href='{0}User.aspx'>Create account</a> <a href='{0}Login.aspx'>Login</a>", ResolveUrl ("~"));
 			rowAdmin.Visible = false;
 		} else {
-			cellLogin.Text = string.Format ("<a href='User.aspx?username={0}'>My Account ({0})</a> <a href='Login.aspx?action=logout'>Log out</a>", Utilities.GetCookie (Request, "user"));
+			cellLogin.Text = string.Format ("<a href='{1}User.aspx?username={0}'>My Account ({0})</a> <a href='{1}Login.aspx?action=logout'>Log out</a>", Utilities.GetCookie (Request, "user"), ResolveUrl ("~"));
 			rowAdmin.Visible = true;
 		}
 
@@ -95,7 +95,7 @@ public partial class Master : System.Web.UI.MasterPage
 		div.ID = "tree_root_id";
 
 		// layout the tree
-		tableMainTree.Rows.Add (Utils.CreateTableRow (CreateTreeViewRow ("index.aspx?show_all=true", "All", 0, root.Depth, true, div, true)));
+		tableMainTree.Rows.Add (Utils.CreateTableRow (CreateTreeViewRow (string.Format ("{0}index.aspx?show_all=true", ResolveUrl ("~")), "All", 0, root.Depth, true, div, true)));
 
 		tableMainTree.Rows.Add (Utils.CreateTableRow (div));
 		WriteTree (root, tableMainTree, 1, root.Depth, div);
@@ -114,7 +114,7 @@ public partial class Master : System.Web.UI.MasterPage
 				}
 			}
 
-			containing_div.Controls.Add (CreateTreeViewRow (string.Format ("index.aspx?lane={0}", HttpUtility.UrlEncode (n.Lane.lane)), n.Lane.lane, level, max_level, n.Children.Count > 0, div, hiding));
+			containing_div.Controls.Add (CreateTreeViewRow (string.Format ("{1}index.aspx?lane={0}", HttpUtility.UrlEncode (n.Lane.lane), ResolveUrl ("~")), n.Lane.lane, level, max_level, n.Children.Count > 0, div, hiding));
 			
 			if (n.Children.Count > 0) {
 				containing_div.Controls.Add (div);
@@ -143,15 +143,15 @@ public partial class Master : System.Web.UI.MasterPage
 		} else {
 			counter++;
 			cell.Text = string.Format (@"
-<img id='minus_img_{1}' src='res/minus.gif' alt='Collapse {0}' height='20px' width='20px' style='display:{3};' onclick='switchVisibility (""plus_img_{1}"", ""minus_img_{1}"", ""{2}"");' />
-<img id='plus_img_{1}'  src='res/plus.gif'  alt='Expand   {0}' height='20px' width='20px' style='display:{4};'  onclick='switchVisibility (""plus_img_{1}"", ""minus_img_{1}"", ""{2}"");' />
-", name, counter, div_to_switch.ClientID, (enable_default_hiding && level > 0) ? "none" : "block", (enable_default_hiding && level > 0) ? "block" : "none");
+<img id='minus_img_{1}' src='{5}res/minus.gif' alt='Collapse {0}' height='20px' width='20px' style='display:{3};' onclick='switchVisibility (""plus_img_{1}"", ""minus_img_{1}"", ""{2}"");' />
+<img id='plus_img_{1}'  src='{5}res/plus.gif'  alt='Expand   {0}' height='20px' width='20px' style='display:{4};'  onclick='switchVisibility (""plus_img_{1}"", ""minus_img_{1}"", ""{2}"");' />
+", name, counter, div_to_switch.ClientID, (enable_default_hiding && level > 0) ? "none" : "block", (enable_default_hiding && level > 0) ? "block" : "none", ResolveUrl ("~"));
 			if (enable_default_hiding && level > 0) {
 				div_to_switch.Attributes ["style"] = "display: none;";
 			}
 		}
 		row.Cells.Add (cell);
-		row.Cells.Add (Utils.CreateTableCell (string.Format ("<a href='{0}'>{1}</a>", target, name)));
+		row.Cells.Add (Utils.CreateTableCell (string.Format ("<a href='{0}'>{1}</a>", ResolveUrl (target), name)));
 
 		tbl.Rows.Add (row);
 

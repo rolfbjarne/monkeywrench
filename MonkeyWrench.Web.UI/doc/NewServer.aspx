@@ -1,14 +1,7 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
-    <title>New MonkeyWrench Server</title>
-    <link rel='stylesheet' href='../res/default.css' type='text/css' />
-</head>
-<body>
-    <h1>
-        <a href='index.html'>MonkeyWrench</a>
-    </h1>
+<%@ Page Language="C#" MasterPageFile="~/Master.master" %>
+
+<asp:Content ID="Content2" ContentPlaceHolderID="content" runat="Server">
+   
     <h2>How to create a new MonkeyWrench server</h2>
     <ul>
 	<li>Install postgresql-server ("zypper install postgresql-server" in OpenSuse, you need at least postgresql 8.3)</li>
@@ -39,6 +32,4 @@ cd ~/monkeywrench &amp;&amp; make publish web
 </li>
 	<li>You should now be able to open http://localhost:8123/ and view the newly installed MonkeyWrench server. The default administrator account is 'admin', whose password also is 'admin'.</li>
     </ul>
-</body>
-</html>
-
+</asp:Content>

@@ -127,7 +127,7 @@
                 <asp:TableCell>
                     <asp:Table runat="server" ID="tblDeletionDirective" CssClass="commands">
                         <asp:TableHeaderRow CssClass="commands_header">
-                            <asp:TableHeaderCell ColumnSpan="7"><a href="doc/EditLaneHelp.html#id_DeletionDirectives">Retention directives</a></asp:TableHeaderCell>
+                            <asp:TableHeaderCell ColumnSpan="7"><a href="doc/ConfigureLane.aspx#id_DeletionDirectives">Retention directives</a></asp:TableHeaderCell>
                         </asp:TableHeaderRow>
                         <asp:TableHeaderRow>
                             <asp:TableHeaderCell>Directive</asp:TableHeaderCell>
