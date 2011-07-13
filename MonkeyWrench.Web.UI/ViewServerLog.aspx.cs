@@ -35,7 +35,7 @@ public partial class ViewServerLog : System.Web.UI.Page
 		try {
 			GetAdminInfoResponse response = Master.WebService.GetAdminInfo (Master.WebServiceLogin);
 
-			if (!response.IsInRole (Roles.Administrator)) {
+			if (!Authentication.IsInRole (response, Roles.Administrator)) {
 				divLog.Text = "You need admin rights.";
 				return;
 			}
