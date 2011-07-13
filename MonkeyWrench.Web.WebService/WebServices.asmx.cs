@@ -1193,6 +1193,7 @@ FROM HostLane";
 
 				DBHost dbhost = new DBHost ();
 				dbhost.host = host;
+				dbhost.enabled = true;
 				dbhost.Save (db);
 				return dbhost.id;
 			}
@@ -2739,3 +2740,4 @@ WHERE Revision.lane_id = @lane_id AND ";
 		#endregion
 	}
 }
+
