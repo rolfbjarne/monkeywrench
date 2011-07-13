@@ -45,6 +45,8 @@ namespace MonkeyWrench
 		public static int UploadPort = 0; // default = 0 (any port)
 		public static int LogVerbosity = 1; // 0: quiet, 1: some messages, 2: verbose (default: 1)
 		public static string IRCLocalEndPoint = string.Empty;
+		public static bool AutomaticScheduler = false;
+		public static int AutomaticSchedulerInterval = 60;
 
 		//the following are used by the database manager.
 		public static bool CleanLargeObjects;
@@ -177,6 +179,8 @@ namespace MonkeyWrench
 				SiteSkin = xml.SelectSingleNode ("MonkeyWrench/Configuration/SiteSkin").GetNodeValue (SiteSkin);
 				UploadPort = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/UploadPort").GetNodeValue (UploadPort.ToString ()));
 				IRCLocalEndPoint = xml.SelectSingleNode ("MonkeyWrench/Configuration/IRCLocalEndPoint").GetNodeValue (IRCLocalEndPoint);
+				AutomaticScheduler = Boolean.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/AutomaticScheduler").GetNodeValue (AutomaticScheduler.ToString ()));
+				AutomaticSchedulerInterval = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/AutomaticSchedulerInterval").GetNodeValue (AutomaticSchedulerInterval.ToString ()));
 
 				// override from command line
 
@@ -205,6 +209,8 @@ namespace MonkeyWrench
 					{"siteskin=", v => SiteSkin = v},
 					{"uploadport=", v => UploadPort = int.Parse (v.Trim ())},
 					{"irclocalendpoint=", v => IRCLocalEndPoint = v},
+					{"automaticscheduler=", v => Boolean.Parse (v.Trim ())},
+					{"automaticschedulerinterval=", v => int.Parse (v.Trim ())},
 
 					// values for the database manager
 					{"compress-files", v => CompressFiles = true},
@@ -530,3 +536,4 @@ namespace MonkeyWrench
 		}
 	}
 }
+
