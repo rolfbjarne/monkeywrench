@@ -43,7 +43,7 @@ public partial class ViewServerLog : System.Web.UI.Page
 			using (FileStream fs = new FileStream (MonkeyWrench.Configuration.LogFile, FileMode.Open, FileAccess.Read)) {
 				fs.Seek (fs.Length > 4096 ? fs.Length - 4096 : 0, SeekOrigin.Begin);
 				using (StreamReader reader = new StreamReader (fs)) {
-					divLog.Text = reader.ReadToEnd ();
+					divLog.Text = reader.ReadToEnd ().Replace ("\n", "<br/>").Replace ("\r", "").Replace (" ", "&nbsp;");
 				}
 			}
 		} catch (Exception ex) {
