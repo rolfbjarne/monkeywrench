@@ -67,14 +67,18 @@ public partial class Master : System.Web.UI.MasterPage
 
 	protected void Page_Load (object sender, EventArgs e)
 	{
+		Logger.Log ("Profile Master {0} starting", id);
 		LoadView ();
 		if (!string.IsNullOrEmpty (Configuration.SiteSkin)) {
 			idFavicon.Href = "res/" + Configuration.SiteSkin + "/favicon.ico";
 			imgLogo.Src = "res/" + Configuration.SiteSkin + "/logo.png";
 			cssSkin.Href = "res/" + Configuration.SiteSkin + "/" + Configuration.SiteSkin + ".css";
 		}
+		Logger.Log ("Profile Master {0} done", id);
 	}
 
+	static int idcounter;
+	int id = idcounter++;
 	private void LoadView ()
 	{
 		if (!Authentication.IsLoggedIn (response)) {
@@ -86,14 +90,18 @@ public partial class Master : System.Web.UI.MasterPage
 			adminmenu.Visible = true;
 		}
 
-		try {
-			tree_response = WebService.GetLeftTreeData (WebServiceLogin);
-		} catch {
-			tree_response = null;
-		}
+		if (tree_response == null) {
+			try {
+				Logger.Log ("Profile Master {0} fetching", id);
+				tree_response = WebService.GetLeftTreeData (WebServiceLogin);
+				Logger.Log ("Profile Master {0} fetched", id);
+			} catch {
+				tree_response = null;
+			}
 
-		CreateTree ();
-		CreateHostStatus ();
+			CreateTree ();
+			CreateHostStatus ();
+		}
 	}
 
 	private void CreateHostStatus ()

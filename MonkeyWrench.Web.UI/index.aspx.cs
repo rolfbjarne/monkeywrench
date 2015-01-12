@@ -32,6 +32,7 @@ public partial class index : System.Web.UI.Page
 
 	protected override void OnLoad (EventArgs e)
 	{
+		MonkeyWrench.Logger.Log ("Profile index launch");
 		base.OnLoad (e);
 
 		try {
@@ -88,7 +89,9 @@ public partial class index : System.Web.UI.Page
 				Response.Cookies.Set (new HttpCookie ("index:lane_id", HttpUtility.UrlEncode (lane_ids_str)));
 			}
 
+			MonkeyWrench.Logger.Log ("Profile index fetching");
 			data = Master.WebService.GetFrontPageDataWithTags (Master.WebServiceLogin, limit, 0, lanes, lane_ids != null ? lane_ids.ToArray () : null, 30, tags);
+			MonkeyWrench.Logger.Log ("Profile index fetched");
 
 			if (data.Exception != null) {
 				if (data.Exception.HttpCode == 403) {
@@ -104,6 +107,7 @@ public partial class index : System.Web.UI.Page
 		} catch (Exception ex) {
 			lblMessage.Text = Utils.FormatException (ex, true);
 		}
+		MonkeyWrench.Logger.Log ("Profile index done");
 	}
 
 	private void WriteLanes (List<StringBuilder> header_rows, LaneTreeNode node, int level, int depth)

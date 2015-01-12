@@ -615,15 +615,22 @@ GROUP BY RevisionWork.id, RevisionWork.lane_id, RevisionWork.host_id, RevisionWo
 		[WebMethod]
 		public GetLaneForEditResponse GetLaneForEdit (WebServiceLogin login, int lane_id, string lane)
 		{
+			var watch = new System.Diagnostics.Stopwatch ();
+			watch.Start ();
+			Logger.Log ("{0} GetLaneForEdit start", watch.ElapsedMilliseconds);
 			GetLaneForEditResponse response = new GetLaneForEditResponse ();
 			using (DB db = new DB ()) {
+				Logger.Log ("{0} GetLaneForEdit connected", watch.ElapsedMilliseconds);
 				Authenticate (db, login, response);
+				Logger.Log ("{0} GetLaneForEdit authenticated", watch.ElapsedMilliseconds);
 				VerifyUserInRole (db, login, Roles.Administrator);
+				Logger.Log ("{0} GetLaneForEdit verified user", watch.ElapsedMilliseconds);
 
 				// We do 2 trips to the database: first to get a list of all the lanes,
 				// then to get all the rest of the information.
 
 				response.Lanes = db.GetAllLanes ();
+				Logger.Log ("{0} GetLaneForEdit fetched all lanes", watch.ElapsedMilliseconds);
 
 				if (lane_id > 0) {
 					response.Lane = response.Lanes.Find ((l) => l.id == lane_id);
@@ -634,6 +641,7 @@ GROUP BY RevisionWork.id, RevisionWork.lane_id, RevisionWork.host_id, RevisionWo
 				var cmdText = new StringBuilder ();
 
 				using (var cmd = db.CreateCommand ()) {
+					Logger.Log ("{0} GetLaneForEdit cmd created", watch.ElapsedMilliseconds);
 					// 1: db.GetAllLanes
 					cmdText.AppendLine ("SELECT * FROM Lane ORDER BY lane;");
 
@@ -697,7 +705,9 @@ ORDER BY Lanefiles.lane_id, Lanefile.name ASC;", response.Lane.id).AppendLine ()
 
 					cmd.CommandText = cmdText.ToString ();
 
+					Logger.Log ("{0} GetLaneForEdit executing reader", watch.ElapsedMilliseconds);
 					using (IDataReader reader = cmd.ExecuteReader ()) {
+						Logger.Log ("{0} GetLaneForEdit executed reader", watch.ElapsedMilliseconds);
 						// 1: db.GetAllLanes
 						response.Lanes = new List<DBLane> ();
 						while (reader.Read ())
@@ -785,6 +795,7 @@ ORDER BY Lanefiles.lane_id, Lanefile.name ASC;", response.Lane.id).AppendLine ()
 								response.Tags.Add (new DBLaneTag (reader));
 							} while (reader.Read ());
 						}
+						Logger.Log ("{0} GetLaneForEdit processed results", watch.ElapsedMilliseconds);
 					}
 				}
 
@@ -1178,6 +1189,7 @@ ORDER BY Lanefiles.lane_id, Lanefile.name ASC;", response.Lane.id).AppendLine ()
 		[WebMethod]
 		public FrontPageResponse GetFrontPageDataWithTags (WebServiceLogin login, int page_size, int page, string [] lanes, int [] lane_ids, int latest_days, string[] tags)
 		{
+			Logger.Log ("Profile GetFrontPageDataWithTags starting");
 			FrontPageResponse response = new FrontPageResponse ();
 			List<DBLane> Lanes = new List<DBLane> ();
 			List<DBHost> Hosts = new List<DBHost> ();
@@ -1196,6 +1208,7 @@ ORDER BY Lanefiles.lane_id, Lanefile.name ASC;", response.Lane.id).AppendLine ()
 			try {
 				using (DB db = new DB ()) {
 					Authenticate (db, login, response, true);
+					Logger.Log ("Profile GetFrontPageDataWithTags authenticated");
 
 					using (IDbCommand cmd = db.CreateCommand ()) {
 						var latest_only = latest_days != 0;
@@ -1248,7 +1261,9 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 							cmd.CommandText += ";";
 						}
 						cmd.CommandText = "SET enable_seqscan = false;\n" + cmd.CommandText + "\nSET enable_seqscan = true;\n";
+						Logger.Log ("Profile GetFrontPageDataWithTags executing lanes");
 						using (IDataReader reader = cmd.ExecuteReader ()) {
+							Logger.Log ("Profile GetFrontPageDataWithTags executed lanes");
 							while (reader.Read ())
 								Lanes.Add (new DBLane (reader));
 							reader.NextResult ();
@@ -1291,8 +1306,7 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 						return false;
 					});
 
-					Logger.Log ("We have {0} selected lanes", response.SelectedLanes.Count);
-
+					Logger.Log ("Profile GetFrontPageDataWithTags selected lanes");
 					// backwards compat
 					if (response.SelectedLanes.Count == 1)
 						response.Lane = response.SelectedLanes [0];
@@ -1301,49 +1315,106 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 					response.RevisionWorkHostLaneRelation = new List<int> (HostLanes.Count);
 
 					if (HostLanes.Count > 0) {
+						Logger.Log ("Profile GetFrontPageDataWithTags fetching hostlanes");
 						using (IDbCommand cmd = db.CreateCommand ()) {
 							var revisionworklists = new Queue<List<DBRevisionWorkView2>> ();
+							Logger.Log ("Profile GetFrontPageDataWithTags fetched hostlanes");
 
 							// FIXME: use this instead: https://gist.github.com/rolfbjarne/cf73bf22209c8a8ef844
 
-							for (int i = 0; i < HostLanes.Count; i++) {
-								DBHostLane hl = HostLanes [i];
-								var RevisionWork = new List<DBRevisionWorkView2> ();
-								revisionworklists.Enqueue (RevisionWork);
+							if (true) {
+								var sql = new StringBuilder ();
+								sql.Append (@"
+SELECT 
+		id, lane_id, host_id, revision_id,  
+		state, completed, endtime, 
+		revision, date, author 
+FROM (
+	SELECT
+		ROW_NUMBER() OVER (PARTITION BY RevisionWork.host_id, RevisionWork.lane_id ORDER BY Revision.date) AS r,
+        RevisionWork.id, RevisionWork.lane_id, RevisionWork.host_id, RevisionWork.revision_id,  
+       	RevisionWork.state, RevisionWork.completed, RevisionWork.endtime, 
+        Revision.revision, Revision.date, Revision.author 
+    FROM RevisionWork 
+    INNER JOIN Revision ON RevisionWork.revision_id = Revision.id
+	WHERE
+");
+								var hlDictionary = new Dictionary<string, List<DBRevisionWorkView2>> ();
+								for (int i = 0; i < HostLanes.Count; i++) {
+									var hl = HostLanes [i];
+									if (i > 0)
+										sql.Append (" OR ");
+									sql.AppendFormat ("(RevisionWork.host_id = {0} AND RevisionWork.lane_id = {1})\n", hl.host_id, hl.lane_id);
+									var revision_work = new List<DBRevisionWorkView2> ();
+									hlDictionary [hl.host_id.ToString () + ":" + hl.lane_id.ToString ()] = revision_work;
+									response.RevisionWorkHostLaneRelation.Add (hl.id);
+									response.RevisionWorkViews.Add (revision_work);
+								}
 
-								var stri = i.ToString ();
-								cmd.CommandText += @"SELECT R.* FROM (" + DBRevisionWorkView2.SQL.Replace (';', ' ') + ") AS R WHERE " +
-									"R.host_id = @host_id" + stri + " AND R.lane_id = @lane_id" + stri + " LIMIT @limit OFFSET @offset;\n";
-								DB.CreateParameter (cmd, "host_id" + stri, hl.host_id);
-								DB.CreateParameter (cmd, "lane_id" + stri, hl.lane_id);
+								sql.Append (
+@"
+    ) S WHERE S.r <= @limit;");
 
-								response.RevisionWorkHostLaneRelation.Add (hl.id);
-								response.RevisionWorkViews.Add (RevisionWork);
+								Logger.Log ("Profile GetFrontPageDataWithTags fetching hostlanes 2");
+								cmd.CommandText = sql.ToString ();
+								DB.CreateParameter (cmd, "limit", page_size);
+								Logger.Log (cmd.CommandText);
+								using (IDataReader reader = cmd.ExecuteReader ()) {
+									Logger.Log ("Profile GetFrontPageDataWithTags fetched hostlanes 2");
+							
+									while (reader.Read ()) {
+										var rwv = new DBRevisionWorkView2 (reader);
+										var key = rwv.host_id.ToString () + ":" + rwv.lane_id.ToString ();
+										var hl = hlDictionary [key];
+										hl.Add (rwv);
+									}
+								}
+								Logger.Log ("Profile GetFrontPageDataWithTags processed hostlanes 2");
+							} else {
+								for (int i = 0; i < HostLanes.Count; i++) {
+									DBHostLane hl = HostLanes [i];
+									var RevisionWork = new List<DBRevisionWorkView2> ();
+									revisionworklists.Enqueue (RevisionWork);
+
+									var stri = i.ToString ();
+									cmd.CommandText += @"SELECT R.* FROM (" + DBRevisionWorkView2.SQL.Replace (';', ' ') + ") AS R WHERE " +
+										"R.host_id = @host_id" + stri + " AND R.lane_id = @lane_id" + stri + " LIMIT @limit OFFSET @offset;\n";
+									DB.CreateParameter (cmd, "host_id" + stri, hl.host_id);
+									DB.CreateParameter (cmd, "lane_id" + stri, hl.lane_id);
+
+									response.RevisionWorkHostLaneRelation.Add (hl.id);
+									response.RevisionWorkViews.Add (RevisionWork);
+								}
+
+								DB.CreateParameter (cmd, "limit", page_size);
+								DB.CreateParameter (cmd, "offset", page * page_size);
+
+								Logger.Log ("Profile GetFrontPageDataWithTags fetching hostlanes 2");
+								using (IDataReader reader = cmd.ExecuteReader ()) {
+									Logger.Log ("Profile GetFrontPageDataWithTags fetched hostlanes 2");
+									do {
+										if (revisionworklists.Count == 0)
+											throw new Exception ("GetFrontPageData3: got more datasets back for revision works than expected. This is most likely a bug, not a configuration issue.");
+
+										var RevisionWork = revisionworklists.Dequeue ();
+										while (reader.Read ())
+											RevisionWork.Add (new DBRevisionWorkView2 (reader));
+									} while (false);
+
+									if (revisionworklists.Count != 0)
+										throw new Exception (string.Format ("GetFrontPageData3: got fewer datasets back for revision works than expected (expected {0} data sets, got {1})."
+											+ " This is most likely a bug, not a configuration issue.", response.RevisionWorkViews.Count, response.RevisionWorkViews.Count - revisionworklists.Count));
+
+								}
+								Logger.Log ("Profile GetFrontPageDataWithTags processed hostlanes 2");
 							}
 
-							DB.CreateParameter (cmd, "limit", page_size);
-							DB.CreateParameter (cmd, "offset", page * page_size);
-
-							using (IDataReader reader = cmd.ExecuteReader ()) {
-								do {
-									if (revisionworklists.Count == 0)
-										throw new Exception ("GetFrontPageData3: got more datasets back for revision works than expected. This is most likely a bug, not a configuration issue.");
-
-									var RevisionWork = revisionworklists.Dequeue ();
-									while (reader.Read ())
-										RevisionWork.Add (new DBRevisionWorkView2 (reader));
-								} while (reader.NextResult ());
-
-								if (revisionworklists.Count != 0)
-									throw new Exception (string.Format ("GetFrontPageData3: got fewer datasets back for revision works than expected (expected {0} data sets, got {1})."
-										+ " This is most likely a bug, not a configuration issue.", response.RevisionWorkViews.Count, response.RevisionWorkViews.Count - revisionworklists.Count));
-
-							}
 						}
 					}
 
 					// Create a list of all the lanes which have hostlanes
 					var enabled_set = new HashSet<int> ();
+					Logger.Log ("Profile GetFrontPageDataWithTags processing hostlanes");
 					foreach (DBHostLane hl in HostLanes) {
 						if (enabled_set.Contains (hl.lane_id))
 							continue;
@@ -1380,6 +1451,7 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 							}
 						}
 					}
+					Logger.Log ("Profile GetFrontPageDataWithTags processed hostlanes");
 
 					// Remove the lanes which aren't marked
 					for (int i = Lanes.Count - 1; i >= 0; i--) {
@@ -1396,6 +1468,7 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 				response.Exception = new WebServiceException (ex);
 			}
 
+			Logger.Log ("Profile GetFrontPageDataWithTags done");
 			return response;
 		}
 
@@ -1468,6 +1541,7 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 		[WebMethod]
 		public GetLeftTreeDataResponse GetLeftTreeData (WebServiceLogin login)
 		{
+			Logger.Log ("Profile GetLeftTreeData init");
 			var response = new GetLeftTreeDataResponse ();
 
 			using (DB db = new DB ()) {
@@ -1498,6 +1572,8 @@ WHERE hidden = false AND Lane.enabled = TRUE";
 					response.UploadStatus = Global.UploadStatus;
 				}
 			}
+
+			Logger.Log ("Profile GetLeftTreeData done");
 
 			return response;
 		}

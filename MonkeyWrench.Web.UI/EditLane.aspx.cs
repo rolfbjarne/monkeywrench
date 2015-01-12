@@ -41,6 +41,7 @@ public partial class EditLane : System.Web.UI.Page
 
 	protected override void OnInit (EventArgs e)
 	{
+		Logger.Log ("EditLane start");
 		base.OnInit (e);
 		try {
 			TableRow row;
@@ -59,7 +60,20 @@ public partial class EditLane : System.Web.UI.Page
 			tblFiles.Visible = true;
 
 			int.TryParse (Request ["lane_id"], out id);
+			Logger.Log ("EditLane fetching");
 			response = Master.WebService.GetLaneForEdit (Master.WebServiceLogin, id, Request ["lane"]);
+			Logger.Log ("EditLane fetched");
+			try {
+				var serializer = new System.Xml.Serialization.XmlSerializer(response.GetType());
+				using (StringWriter sw = new StringWriter())
+				{
+					serializer.Serialize(sw, response);
+					File.WriteAllText ("/tmp/serialized", sw.ToString());
+				}
+				Logger.Log ("EditLane serialized");
+			} catch (Exception ex) {
+				Logger.Log ("EditLane not serialized: {0}", ex.Message);
+			}
 
 			lane = response.Lane;
 
@@ -498,6 +512,7 @@ public partial class EditLane : System.Web.UI.Page
 		} catch (Exception ex) {
 			lblMessage.Text = ex.ToString ().Replace ("\n", "<br/>");
 		}
+		Logger.Log ("EditLane done");
 	}
 
 	IEnumerable<DBLane> GetLanesWhereFileIsUsed (DBLanefile file, GetLaneForEditResponse response)
