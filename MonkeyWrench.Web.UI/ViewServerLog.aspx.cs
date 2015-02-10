@@ -47,7 +47,21 @@ public partial class ViewServerLog : System.Web.UI.Page
 			if (max_length == 0)
 				max_length = 32768;
 
-			using (FileStream fs = new FileStream (MonkeyWrench.Configuration.LogFile, FileMode.Open, FileAccess.Read)) {
+			var file = MonkeyWrench.Configuration.LogFile;
+			int lane_id;
+			string name;
+			if (int.TryParse (Request ["lane_id"], out lane_id)) {
+				file = MonkeyWrench.Configuration.GetLogPathForLane (lane_id);
+			} else if (!string.IsNullOrEmpty (name = Request ["name"])) {
+				// white-list the files we want to show.
+				switch (name) {
+				case "scheduler.log":
+					file = Path.Combine (MonkeyWrench.Configuration.LogDirectory, name);
+					break;
+				}
+			}
+
+			using (FileStream fs = new FileStream (file, FileMode.Open, FileAccess.Read)) {
 				max_length = Math.Min (max_length, (long) fs.Length);
 				fs.Seek (fs.Length - max_length, SeekOrigin.Begin);
 				using (StreamReader reader = new StreamReader (fs)) {

@@ -1,4 +1,11 @@
 ﻿
+function getLocationRoot ()
+{
+    var url = window.location.pathname;
+    url = url.substring (1, url.lastIndexOf ('/'));
+    return url;
+}
+
 function addCommand(lane_id, sequence) {
     window.location = window.location.pathname + "?lane_id=" + lane_id + "&action=addCommand&command=" + document.getElementById("txtCreateCommand_name").value + "&sequence=" + sequence;
 }
@@ -121,4 +128,23 @@ function updateDeletionDirectiveGlobMode(lane_id, deletion_directive_id) {
 function updateDeletionDirectiveCondition(lane_id, deletion_directive_id) {
     var condition = document.getElementById("lstDeletionConditions").value;
     window.location = window.location.pathname + "?lane_id=" + lane_id & "&action=updateDeletionDirectiveCondition&directive_id=" + deletion_directive_id + "&condition=" + condition;
+}
+
+function updateDeletionDirectiveCondition(lane_id, deletion_directive_id) {
+    var condition = document.getElementById("lstDeletionConditions").value;
+    window.location = window.location.pathname + "?lane_id=" + lane_id & "&action=updateDeletionDirectiveCondition&directive_id=" + deletion_directive_id + "&condition=" + condition;
+}
+   
+function scheduleLane (txtID) {
+    var lane_id = document.getElementById (txtID).value;
+    var url = getWebServicesRoot () + "/ScheduleLane.aspx?lane_id=" + lane_id;
+    var container = document.getElementById ("schedule_div");
+    container.style.display = 'block';
+    var element = document.getElementById ("schedule_output");
+    fetchContent (url, element);
+}
+
+function viewLog (lane_id)
+{
+	window.location = getLocationRoot () + "ViewServerLog.aspx?lane_id=" + lane_id;
 }

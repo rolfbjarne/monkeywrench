@@ -28,6 +28,9 @@ namespace MonkeyWrench.Scheduler
 	public static class Scheduler
 	{
 		private static bool is_executing;
+		static bool queued_forced = false;
+		static HashSet<string> queued_repositories = new HashSet<string> ();
+		static object queue_lock = new object ();
 
 		public static bool IsExecuting
 		{
@@ -55,124 +58,141 @@ namespace MonkeyWrench.Scheduler
 			});
 		}
 
-		public static List<XmlDocument> GetReports (bool forcefullupdate)
+		public static void ExecuteSchedulerAsync (string[] repositories)
 		{
-			List<XmlDocument> result = null;
-			if (!Configuration.ForceFullUpdate && !forcefullupdate) {
-				try {
-					foreach (string file in Directory.GetFiles (Configuration.GetSchedulerCommitsDirectory (), "*.xml")) {
-						string hack = File.ReadAllText (file);
-						if (!hack.Contains ("</directory>"))
-							hack = hack.Replace ("</directory", "</directory>");
-						File.WriteAllText (file, hack);
-						XmlDocument doc = new XmlDocument ();
-						try {
-							Logger.Log ("Updater: got report file '{0}'", file);
-							doc.Load (file);
-							if (result == null)
-								result = new List<XmlDocument> ();
-							result.Add (doc);
-						} catch (Exception ex) {
-							Logger.Log ("Updater: exception while checking commit report '{0}': {1}", file, ex);
-						}
-						try {
-							File.Delete (file); // No need to check this file more than once.
-						} catch {
-							// Ignore any exceptions
-						}
-					}
-				} catch (Exception ex) {
-					Logger.Log ("Updater: exception while checking commit reports: {0}", ex);
-				}
-			}
-			return result;
+			Async.Execute ((v) => {
+				ExecuteScheduler (null, false, repositories, null);
+			});
+		}
+
+		public static void ExecuteSchedulerSync (ILogger logger)
+		{
+			ExecuteScheduler (logger, false, null, null, true);
+		}
+
+		public static void ExecuteSchedulerSync (int lane_id, ILogger logger)
+		{
+			ExecuteScheduler (logger, false, null, new int [] { lane_id }, false);
 		}
 
 		public static bool ExecuteScheduler (bool forcefullupdate)
 		{
-			DateTime start;
+			return ExecuteScheduler (null, forcefullupdate, null, null);
+		}
+
+		public static bool ExecuteScheduler (ILogger extra_log, bool forcefullupdate, string[] repos, int[] filter_to_lanes, bool queue_if_busy = true)
+		{
+			Stopwatch watch = new Stopwatch ();
 			Lock scheduler_lock = null;
 			List<DBLane> lanes;
 
 			List<DBHost> hosts;
 			List<DBHostLane> hostlanes;
-			List<XmlDocument> reports;
-			
+			const string logName = "scheduler.log";
+
+			ILogger log = new NamedLogger (logName);
+			if (extra_log != null) {
+				log = new AggregatedLogger (new ILogger [] { extra_log, log });
+			}
+
 			try {
 				scheduler_lock = Lock.Create ("MonkeyWrench.Scheduler");
 				if (scheduler_lock == null) {
-					Logger.Log ("Could not aquire scheduler lock.");
+					log.Log ("Could not aquire scheduler lock.");
+					if (queue_if_busy) {
+						lock (queued_repositories) {
+							if (repos != null && repos.Length > 0) {
+								foreach (var r in repos)
+									queued_repositories.Add (r);
+								log.Log ("Queued {0} repositories for later scheduling: {1}", repos.Length, string.Join (", ", repos));
+							}
+							queued_forced |= forcefullupdate;
+						}
+					}
 					return false;
 				}
 
-				Logger.Log ("Scheduler lock aquired successfully.");
+				log.Log ("Scheduler lock aquired successfully.");
 				
 				is_executing = true;
-				start = DateTime.Now;
-
-				// SVNUpdater.StartDiffThread ();
-
-				// Check reports
-				reports = GetReports (forcefullupdate);
+				watch.Start ();
 
 				using (DB db = new DB (true)) {
 					lanes = db.GetAllLanes ();
 					hosts = db.GetHosts ();
 					hostlanes = db.GetAllHostLanes ();
 
-					Logger.Log ("Updater will now update {0} lanes.", lanes.Count);
+					var filtered_lanes = SchedulerBase.FilterLanes (lanes, hostlanes, logName);
 
-					GITUpdater git_updater = null;
-					// SVNUpdater svn_updater = null;
-
-					foreach (DBLane lane in lanes) {
-						if (!lane.enabled) {
-							Logger.Log ("Schedule: lane {0} is disabled, skipping it.", lane.lane);
-							continue;
-						}
-
-						SchedulerBase updater;
-						switch (lane.source_control) {
-							/*
-						case "svn":
-							if (svn_updater == null)
-								svn_updater = new SVNUpdater (forcefullupdate);
-							updater = svn_updater;
-							break;
-							 * */
-						case "git":
-							if (git_updater == null)
-								git_updater = new GITUpdater (forcefullupdate);
-							updater = git_updater;
-							break;
-						default:
-							Logger.Log ("Unknown source control: {0} for lane {1}", lane.source_control, lane.lane);
-							continue;
-						}
-						updater.Clear ();
-						updater.AddChangeSets (reports);
-						updater.UpdateRevisionsInDB (db, lane, hosts, hostlanes);
+					if (filter_to_lanes != null && filter_to_lanes.Length > 0) {
+						filtered_lanes.RemoveAll ((v) => !filter_to_lanes.Contains (v.id));
 					}
 
-					AddRevisionWork (db);
-					AddWork (db, hosts, lanes, hostlanes);
-					CheckDependencies (db, hosts, lanes, hostlanes);
+					log.Log ("Scheduler will process {0} lanes", filtered_lanes.Count);
+
+					// Collect the repositories to fetch
+					var repositories = new HashSet<string> ();
+					var lanes_for_repository = new Dictionary<string, List<DBLane>> ();
+					foreach (var lane in filtered_lanes) {
+						foreach (var repo in lane.repository.Split (new char [] { ',' }, StringSplitOptions.RemoveEmptyEntries)) {
+							repositories.Add (repo);
+							List<DBLane> l;
+							if (!lanes_for_repository.TryGetValue (repo, out l)) {
+								l = new List<DBLane> ();
+								lanes_for_repository [repo] = l;
+							}
+							l.Add (lane);
+						}
+					}
+					if (!forcefullupdate && repos != null && repos.Length > 0) {
+						var input_repositories = new HashSet<string> ();
+						foreach (var repo in repos)
+							input_repositories.Add (repo);
+						repositories.IntersectWith (input_repositories); // only process those that are both in filtered lanes, and in the input list.
+					}
+					// Fetch all the repositores we care about.
+					var updater = new GITUpdater (repositories, forcefullupdate);
+					var logs = updater.FetchGitRepositories (log);
+					foreach (var kvp in logs) {
+						foreach (DBLane lane in lanes_for_repository [kvp.Key]) {
+							log.LogToRaw (Configuration.GetLogFileForLane (lane.id), kvp.Value.ToString ());
+						}
+					}
+					log.Log ("Fetching revisions in {0} lanes", filtered_lanes.Count);
+					foreach (DBLane lane in filtered_lanes)
+						updater.UpdateRevisionsInDB (db, lane, hosts, hostlanes, log);
+
+					AddRevisionWork (db, log);
+					AddWork (db, hosts, filtered_lanes, lanes, hostlanes, log);
+					if (forcefullupdate)
+						CheckDependencies (db, hosts, lanes, hostlanes, log);
 				}
 
-				Logger.Log ("Update done, waiting for diff thread to finish...");
-
-				// SVNUpdater.StopDiffThread ();
-
-				Logger.Log ("Update finished successfully in {0} seconds.", (DateTime.Now - start).TotalSeconds);
+				log.Log ("Scheduler finished successfully in {0} seconds.", watch.Elapsed.TotalSeconds);
 
 				return true;
 			} catch (Exception ex) {
-				Logger.Log ("An exception occurred: {0}", ex.ToString ());
+				log.Log ("An exception occurred in the scheduler: {0}", ex.ToString ());
 				return false;
 			} finally {
 				if (scheduler_lock != null)
 					scheduler_lock.Unlock ();
-				is_executing = false;
+				if (queue_if_busy) {
+					HashSet<string> t_repositories;
+					bool t_full;
+					lock (queue_lock) {
+						t_repositories = queued_repositories;
+						t_full = queued_forced;
+						queued_repositories = new HashSet<string> ();
+						queued_forced = false;
+					}
+					is_executing = false;
+					if (t_full || t_repositories.Count > 0) {
+						Async.Execute ((v) => {
+							ExecuteScheduler (extra_log, t_full, t_repositories.ToArray (), filter_to_lanes, queue_if_busy);
+						});
+					}
+				}
 			}
 		}
 
@@ -183,16 +203,16 @@ namespace MonkeyWrench.Scheduler
 		/// <param name="lane"></param>
 		/// <param name="host"></param>
 		/// <returns></returns>
-		public static bool AddRevisionWork (DB db)
+		public static void AddRevisionWork (DB db, ILogger log)
 		{
-			DateTime start = DateTime.Now;
-			StringBuilder sql = new StringBuilder ();
-			int line_count = 0;
+			var watch = new Stopwatch ();
+			watch.Start ();
 
 			try {
 				using (IDbCommand cmd = db.CreateCommand ()) {
 					cmd.CommandText = @"
-SELECT Lane.id AS lid, Revision.id AS rid, Host.id AS hid
+INSERT INTO RevisionWork (lane_id, revision_id, host_id, state) 
+SELECT Lane.id AS lid, Revision.id AS rid, Host.id AS hid, 10 as state
 FROM HostLane
 INNER JOIN Host ON HostLane.host_id = Host.id
 INNER JOIN Lane ON HostLane.lane_id = Lane.id
@@ -204,31 +224,18 @@ WHERE HostLane.enabled = true AND
 		WHERE RevisionWork.lane_id = Lane.id AND RevisionWork.host_id = Host.id AND RevisionWork.revision_id = Revision.id
 		);
 ";
-					using (IDataReader reader = cmd.ExecuteReader ()) {
-						int lane_idx = reader.GetOrdinal ("lid");
-						int host_idx = reader.GetOrdinal ("hid");
-						int revision_idx = reader.GetOrdinal ("rid");
-						while (reader.Read ()) {
-							int lane_id = reader.GetInt32 (lane_idx);
-							int host_id = reader.GetInt32 (host_idx);
-							int revision_id = reader.GetInt32 (revision_idx);
-							line_count++;
-							sql.AppendFormat ("INSERT INTO RevisionWork (lane_id, host_id, revision_id, state) VALUES ({0}, {1}, {2}, 10);\n", lane_id, host_id, revision_id);
-						}
+					try {
+						var rv = cmd.ExecuteNonQuery ();
+						log.Log ("AddRevisionWork: Added {0} records.", rv);
+					} catch (Exception ex) {
+						log.Log ("Failed to add revisionwork: {0}\n{1}", ex.Message, cmd.CommandText);
+						throw;
 					}
 				}
-				if (line_count > 0) {
-					Logger.Log ("AddRevisionWork: Adding {0} records.", line_count);
-					db.ExecuteScalar (sql.ToString ());
-				} else {
-					Logger.Log ("AddRevisionWork: Nothing to add.");
-				}
-				return line_count > 0;
 			} catch (Exception ex) {
-				Logger.Log ("AddRevisionWork got an exception: {0}\n{1}", ex.Message, ex.StackTrace);
-				return false;
+				log.Log ("AddRevisionWork got an exception: {0}\n{1}", ex.Message, ex.StackTrace);
 			} finally {
-				Logger.Log ("AddRevisionWork [Done in {0} seconds]", (DateTime.Now - start).TotalSeconds);
+				log.Log ("AddRevisionWork done in {0} seconds", watch.Elapsed.TotalSeconds);
 			}
 		}
 
@@ -240,9 +247,10 @@ WHERE HostLane.enabled = true AND
 			}
 		}
 
-		private static void AddWork (DB db, List<DBHost> hosts, List<DBLane> lanes, List<DBHostLane> hostlanes)
+		private static void AddWork (DB db, List<DBHost> hosts, List<DBLane> selected_lanes, List<DBLane> all_lanes, List<DBHostLane> hostlanes, ILogger log)
 		{
-			DateTime start = DateTime.Now;
+			var watch = new Stopwatch ();
+			watch.Start ();
 			List<DBCommand> commands = null;
 			List<DBLaneDependency> dependencies = null;
 			List<DBCommand> commands_in_lane;
@@ -263,9 +271,10 @@ WHERE HostLane.enabled = true AND
 					}
 				}
 
-				Logger.Log (1, "AddWork: Got {0} hosts and {1} revisionwork without work", hosts.Count, revisionwork_without_work.Count);
+				log.Log ("AddWork: Got {0} hosts and {1} revisionwork without work", hosts.Count, revisionwork_without_work.Count);
 
-				foreach (DBLane lane in lanes) {
+				foreach (DBLane lane in selected_lanes) {
+					var laneLog = Configuration.GetLogFileForLane (lane.id);
 					commands_in_lane = null;
 
 					foreach (DBHost host in hosts) {
@@ -278,14 +287,14 @@ WHERE HostLane.enabled = true AND
 						}
 
 						if (hostlane == null) {
-							Logger.Log (2, "AddWork: Lane '{0}' is not configured for host '{1}', not adding any work.", lane.lane, host.host);
+//							log.LogTo (laneLog, "AddWork: Lane '{0}' is not configured for host '{1}', not adding any work.", lane.lane, host.host);
 							continue;
 						} else if (!hostlane.enabled) {
-							Logger.Log (2, "AddWork: Lane '{0}' is disabled for host '{1}', not adding any work.", lane.lane, host.host);
+							log.LogTo (laneLog, "AddWork: Lane '{0}' is disabled for host '{1}', not adding any work.", lane.lane, host.host);
 							continue;
 						}
 
-						Logger.Log (1, "AddWork: Lane '{0}' is enabled for host '{1}', adding work!", lane.lane, host.host);
+						log.LogTo (laneLog, "AddWork: Lane '{0}' is enabled for host '{1}', adding work!", lane.lane, host.host);
 
 						foreach (DBRevisionWork revisionwork in revisionwork_without_work) {
 							bool has_dependencies;
@@ -299,7 +308,7 @@ WHERE HostLane.enabled = true AND
 								commands = db.GetCommands (0);
 							if (commands_in_lane == null) {
 								commands_in_lane = new List<DBCommand> ();
-								CollectWork (commands_in_lane, lanes, lane, commands);
+								CollectWork (commands_in_lane, all_lanes, lane, commands);
 							}
 
 							if (!fetched_dependencies) {
@@ -309,7 +318,7 @@ WHERE HostLane.enabled = true AND
 
 							has_dependencies = dependencies != null && dependencies.Any (dep => dep.lane_id == lane.id);
 
-							Logger.Log (2, "AddWork: Lane '{0}', revisionwork_id '{1}' has dependencies: {2}", lane.lane, revisionwork.id, has_dependencies);
+//							log.LogTo (laneLog, "AddWork: Lane '{0}', revisionwork_id '{1}' has dependencies: {2}", lane.lane, revisionwork.id, has_dependencies);
 
 							foreach (DBCommand command in commands_in_lane) {
 								int work_state = (int) (has_dependencies ? DBState.DependencyNotFulfilled : DBState.NotDone);
@@ -317,27 +326,25 @@ WHERE HostLane.enabled = true AND
 								sql.AppendFormat ("INSERT INTO Work (command_id, revisionwork_id, state) VALUES ({0}, {1}, {2});\n", command.id, revisionwork.id, work_state);
 								lines++;
 
-
-								Logger.Log (2, "Lane '{0}', revisionwork_id '{1}' Added work for command '{2}'", lane.lane, revisionwork.id, command.command);
+//								log.LogTo (laneLog, "Lane '{0}', revisionwork_id '{1}' Added work for command '{2}'", lane.lane, revisionwork.id, command.command);
 
 								if ((lines % 100) == 0) {
 									db.ExecuteNonQuery (sql.ToString ());
 									sql.Clear ();
-									Logger.Log (1, "AddWork: flushed work queue, added {0} items now.", lines);
+									log.LogTo (laneLog, "AddWork: flushed work queue, added {0} items now.", lines);
 								}
 							}
 
 							sql.AppendFormat ("UPDATE RevisionWork SET state = {0} WHERE id = {1} AND state = 10;", (int) (has_dependencies ? DBState.DependencyNotFulfilled : DBState.NotDone), revisionwork.id);
-
 						}
 					}
 				}
 				if (sql.Length > 0)
 					db.ExecuteNonQuery (sql.ToString ());
 			} catch (Exception ex) {
-				Logger.Log (0, "AddWork: There was an exception while adding work: {0}", ex.ToString ());
+				log.Log ("AddWork: There was an exception while adding work: {0}", ex.ToString ());
 			}
-			Logger.Log (1, "AddWork: [Done in {0} seconds]", (DateTime.Now - start).TotalSeconds);
+			log.Log ("AddWork: [Done in {0} seconds]", watch.Elapsed.TotalSeconds);
 		}
 
 		private static void CheckDependenciesSlow (DB db, List<DBHost> hosts, List<DBLane> lanes, List<DBHostLane> hostlanes, List<DBLaneDependency> dependencies)
@@ -445,7 +452,86 @@ WHERE HostLane.enabled = true AND
 			}
 		}
 
-		private static void CheckDependencies (DB db, List<DBHost> hosts, List<DBLane> lanes, List<DBHostLane> hostlanes)
+		public static void ReportCompletedRevisionWork (DB db, DBRevisionWork revision_work)
+		{
+			if (revision_work.State != DBState.Issues && revision_work.State != DBState.Success)
+				return; // no condition was satisifed.
+
+			var watch = new Stopwatch ();
+			watch.Start ();
+			var logName = "lane-" + revision_work.lane_id + ".log";
+
+			try {
+				var dependencies = DBLaneDependency_Extensions.GetDependencies (db, revision_work.lane_id);
+
+				Logger.LogTo (1, logName, "ReportCompletedRevisionWork: Checking {0} dependencies", dependencies == null ? 0 : dependencies.Count);
+
+				if (dependencies == null || dependencies.Count == 0)
+					return;
+
+				/* Check that there is only 1 dependency per lane and only DependentLaneSuccess condition */
+				foreach (DBLaneDependency dep in dependencies) {
+					if (dependencies.Any (dd => dep.id != dd.id && dep.lane_id == dd.lane_id)) {
+						Logger.LogTo (0, logName, "ReportCompletedRevisionWork: lane {0} has multiple dependencies (currently not implemented)", dep.lane_id);
+						return;
+					}
+					if (dep.Condition != DBLaneDependencyCondition.DependentLaneSuccess && dep.Condition != DBLaneDependencyCondition.DependentLaneIssuesOrSuccess) {
+						Logger.LogTo (0, logName, "ReportCompletedRevisionWork: dep {0} has unsupported condition {1}", dep.id, dep.Condition);
+						return;
+					}
+				}
+
+				foreach (DBLaneDependency dependency in dependencies) {
+					Logger.LogTo (1, logName, "ReportCompletedRevisionWork: Checking dependency {0} for lane {1}", dependency.id, dependency.lane_id);
+					switch (dependency.Condition) {
+					case DBLaneDependencyCondition.DependentLaneIssuesOrSuccess:
+						break; // satisfied
+					case DBLaneDependencyCondition.DependentLaneSuccess:
+						if (revision_work.State != DBState.Success) {
+							Logger.LogTo (2, logName, "ReportCompletedRevisionWork: dependency {0} not satisfied (revisionwork didn't succeed)", dependency.id);
+							continue; // not satisifed
+						}
+						break;
+					default:
+						Logger.LogTo (2, logName, "ReportCompletedRevisionWork: dependency {0} not satisfied (unknown condition)", dependency.id);
+						continue; // not satisfied (this needs extra handling)
+					}
+
+					if (dependency.dependent_host_id != null && revision_work.host_id != dependency.dependent_host_id.Value) {
+						Logger.LogTo (2, logName, "ReportCompletedRevisionWork: dependency {0} not satisfied (wrong host)", dependency.id);
+						continue; // wrong host
+					}
+
+					/* Find the revision works which has filfilled dependencies */
+					using (IDbCommand cmd = db.CreateCommand ()) {
+						cmd.CommandText = @"
+SELECT RevisionWork.id
+FROM RevisionWork
+INNER JOIN Revision ON Revision.id = RevisionWork.revision_id
+WHERE
+	RevisionWork.lane_id = @lane_id AND
+	Revision.revision = (SELECT revision FROM Revision WHERE id = @revision_id) AND
+	RevisionWork.state = 9
+INTO TEMPORARY UNLOGGED TABLE tmp;
+
+UPDATE Work SET state = 0 WHERE revisionwork_id IN (SELECT * FROM tmp) AND state = 9;
+UPDATE RevisionWork SET state = 0 WHERE id = IN (SELECT * FROM tmp) AND state = 9;
+";
+						DB.CreateParameter (cmd, "lane_id", dependency.lane_id);
+						DB.CreateParameter (cmd, "revision_id", revision_work.revision_id);
+
+						var rv = cmd.ExecuteNonQuery ();
+						Logger.LogTo (1, logName, "ReportCompletedRevisionWork: dependency {0} resulted in {1} modified records", dependency.id, rv);
+					}
+				}
+			} catch (Exception ex) {
+				Logger.LogTo (logName, "ReportCompletedRevisionWork: There was an exception while checking dependencies db: {0}", ex.ToString ());
+			} finally {
+				Logger.LogTo (logName, "ReportCompletedRevisionWork: [Done in {0} seconds]", watch.Elapsed.TotalSeconds);
+			}
+		}
+
+		private static void CheckDependencies (DB db, List<DBHost> hosts, List<DBLane> lanes, List<DBHostLane> hostlanes, ILogger log)
 		{
 			DateTime start = DateTime.Now;
 			StringBuilder sql = new StringBuilder ();
@@ -454,7 +540,7 @@ WHERE HostLane.enabled = true AND
 			try {
 				dependencies = DBLaneDependency_Extensions.GetDependencies (db, null);
 
-				Logger.Log (1, "CheckDependencies: Checking {0} dependencies", dependencies == null ? 0 : dependencies.Count);
+				log.Log ("CheckDependencies: Checking {0} dependencies", dependencies == null ? 0 : dependencies.Count);
 
 				if (dependencies == null || dependencies.Count == 0)
 					return;
@@ -472,7 +558,7 @@ WHERE HostLane.enabled = true AND
 				}
 
 				foreach (DBLaneDependency dependency in dependencies) {
-					Logger.Log (1, "CheckDependencies: Checking dependency {0} for lane {1}", dependency.id, dependency.lane_id);
+					log.Log ("CheckDependencies: Checking dependency {0} for lane {1}", dependency.id, dependency.lane_id);
 					/* Find the revision works which has filfilled dependencies */
 					using (IDbCommand cmd = db.CreateCommand ()) {
 						cmd.CommandText = @"
@@ -524,9 +610,9 @@ WHERE
 
 				}
 			} catch (Exception ex) {
-				Logger.Log ("CheckDependencies: There was an exception while checking dependencies db: {0}", ex.ToString ());
+				log.Log ("CheckDependencies: There was an exception while checking dependencies db: {0}", ex.ToString ());
 			} finally {
-				Logger.Log ("CheckDependencies: [Done in {0} seconds]", (DateTime.Now - start).TotalSeconds);
+				log.Log ("CheckDependencies: [Done in {0} seconds]", (DateTime.Now - start).TotalSeconds);
 			}
 		}
 

@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Web;
@@ -37,13 +38,6 @@ public partial class ReportGitHubCommit : System.Web.UI.Page
 
 		Logger.Log ("ReportGitHubCommit.aspx: received post with {2} files from: {0} allowed ips: {1}", ip, Configuration.AllowedCommitReporterIPs, Request.Files.Count);
 
-		foreach (HttpPostedFile f in Request.Files) {
-			Logger.Log ("ReportGitHubCommit.aspx: got file: {0}", f.FileName);
-		}
-		foreach (string f in Request.Form.AllKeys) {
-			Logger.Log ("ReportGitHubCommit.aspx: {0}={1}", f, Request.Form [f]);
-		}
-
 		foreach (string allowed_ip in Configuration.AllowedCommitReporterIPs.Split ('.')) {
 			if (string.IsNullOrEmpty (ip))
 				continue;
@@ -61,61 +55,32 @@ public partial class ReportGitHubCommit : System.Web.UI.Page
 		payload = Request ["payload"];
 
 		if (!string.IsNullOrEmpty (payload)) {
-			string outdir = Configuration.GetSchedulerCommitsDirectory ();
-			string outfile = Path.Combine (outdir, string.Format ("commit-{0}.xml", DateTime.Now.ToString ("yyyy-MM-dd-HH-mm-ss")));
-
 			if (payload.Length > 1024 * 100) {
 				Logger.Log ("ReportGitHubCommit.aspx: {0} tried to send oversized file (> {1} bytes.", Request.UserHostAddress, 1024 * 100);
 				return;
 			}
 
-			if (!Directory.Exists (outdir))
-				Directory.CreateDirectory (outdir);
-
-			Logger.Log ("ReportGitHubCommit.aspx: Got 'payload' from {2} with size {0} bytes, writing to '{1}'", payload.Length, outfile, ip);
-
 			JavaScriptSerializer json = new JavaScriptSerializer ();
 			GitHub.Payload pl = json.Deserialize<GitHub.Payload> (payload);
+			var repo = pl.repository;
 
-			XmlWriterSettings settings = new XmlWriterSettings ();
-			settings.CloseOutput = true;
-			settings.Indent = true;
-			settings.IndentChars = "\t";
-			XmlWriter writer = XmlWriter.Create (outfile, settings);
-			/*
-# <monkeywrench version="1">
-#   <changeset sourcecountrol="svn|git" root="<repository root>" revision="<revision>">
-#     <directories>
-#        <directory>/dir1</directory>
-#        <directory>/dir2</directory>
-#     </directories>
-#   </changeset>
-# </monkeywrench>
-			 * */
-			writer.WriteStartElement ("monkeywrench");
-			writer.WriteAttributeString ("version", "1");
-			foreach (GitHub.Commit commit in pl.commits) {
-				writer.WriteStartElement ("changeset");
-				writer.WriteAttributeString ("sourcecontrol", "git");
-				writer.WriteAttributeString ("root", pl.repository.url);
-				writer.WriteAttributeString ("revision", commit.id);
-				writer.WriteStartElement ("directories");
-				HashSet<string> dirs = new HashSet<string> ();
-				foreach (string f in commit.added)
-					dirs.Add (Path.GetDirectoryName (f));
-				foreach (string f in commit.modified)
-					dirs.Add (Path.GetDirectoryName (f));
-				foreach (string f in commit.removed)
-					dirs.Add (Path.GetDirectoryName (f));
-				foreach (string dir in dirs) {
-					writer.WriteElementString ("directory", dir);
-				}
-				writer.WriteEndElement ();
-				writer.WriteEndElement ();
-			}
-			writer.WriteEndElement ();
-			writer.Close ();
+			var hash = new HashSet<string> ();
+			Action<string> add_hash = (v) => {
+				hash.Add (v);
+				if (v.EndsWith (".git"))
+					hash.Add (v.Substring (0, v.Length - 4));
+				else
+					hash.Add (v + ".git");
+			};
+			add_hash (repo.url);
+			add_hash (repo.clone_url);
+			add_hash (repo.git_url);
+			add_hash (repo.html_url);
+			add_hash (repo.ssh_url);
 
+			Logger.Log ("ReportGitHubCommit.aspx: Got 'payload' from {0} with size {1} bytes for repositories {2}", payload.Length, ip, string.Join (", ", hash.ToArray ()));
+
+			WebServices.ExecuteSchedulerForRepositoriesAsync (hash.ToArray ());
 		} else {
 			Logger.Log ("ReportCommit.aspx: Didn't get a file called 'payload'");
 		}
@@ -151,6 +116,10 @@ public partial class ReportGitHubCommit : System.Web.UI.Page
 		{
 			public string name;
 			public string url;
+			public string html_url;
+			public string git_url;
+			public string ssh_url;
+			public string clone_url;
 			public string pledgie;
 			public string description;
 			public string homepage;

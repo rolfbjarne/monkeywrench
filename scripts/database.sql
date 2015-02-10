@@ -78,12 +78,14 @@ CREATE TABLE Lane (
 	traverse_merge boolean    NOT NULL DEFAULT FALSE, -- if commits from a merge (besides the merge commit itself) should be included.
 	enabled        boolean    NOT NULL DEFAULT TRUE,  -- if a lane is enabled or not.
 	changed_date   timestamp  NULL DEFAULT NULL,      -- the latest date something happened in this lane
+	last_revision  text       NULL DEFAULT NULL,      -- the last hash that was inserted into the db
 	UNIQUE (lane)
 );
 INSERT INTO Lane (lane, source_control, repository) VALUES ('monkeywrench', 'git', 'git://github.com/mono/monkeywrench');
 -- ALTER TABLE Lane ADD COLUMN traverse_merge boolean NOT NULL DEFAULT FALSE;
 -- ALTER TABLE Lane ADD COLUMN enabled boolean NOT NULL DEFAULT TRUE;
 -- ALTER TABLE Lane ADD COLUMN changed_date timestamp NULL DEFAULT NULL;
+-- ALTER TABLE Lane ADD COLUMN last_revision text NULL DEFAULT NULL;
 
 -- Command to set the latest changed_date on every lane.
 -- UPDATE Lane SET changed_date = (SELECT MAX(endtime) FROM RevisionWork WHERE RevisionWork.lane_id = Lane.id);

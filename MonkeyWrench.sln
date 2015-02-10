@@ -160,7 +160,6 @@ Global
 		{5A315F92-80D2-4C60-A5A4-22E027AC7E7E} = {0383DE2B-50A5-449C-AAC0-4DDD753764DD}
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
-		StartupItem = MonkeyWrench.Scheduler\MonkeyWrench.Scheduler.csproj
 		Policies = $0
 		$0.VersionControlPolicy = $1
 		$1.CommitMessageStyle = $2

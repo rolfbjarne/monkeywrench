@@ -51,6 +51,7 @@
         </form>
       </div>
 	</div>
+	<input type="hidden" id="idWebServicesUrl" value="<%= MonkeyWrench.Configuration.WebServiceUrl %>" />
 </body>
 </html>
 

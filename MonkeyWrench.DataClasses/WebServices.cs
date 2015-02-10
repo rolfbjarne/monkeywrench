@@ -483,6 +483,21 @@ namespace MonkeyWrench.Web.WebServices
 			WebService.CreateLogin (Configuration.SchedulerAccount, Configuration.SchedulerPassword);
 			WebService.ExecuteScheduler (WebService.WebServiceLogin, Configuration.ForceFullUpdate);
 		}
+
+		public static void ExecuteSchedulerForRepositoriesAsync (string[] repositories)
+		{
+			WebServices WebService = Create ();
+			WebService.CreateLogin (Configuration.SchedulerAccount, Configuration.SchedulerPassword);
+			WebService.ExecuteSchedulerForRepositories (WebService.WebServiceLogin, repositories);
+		}
+
+
+		public static string ExecuteSchedulerLane (int lane_id)
+		{
+			WebServices WebService = Create ();
+			WebService.CreateLogin (Configuration.SchedulerAccount, Configuration.SchedulerPassword);
+			return WebService.ExecuteSchedulerForLane (WebService.WebServiceLogin, lane_id);
+		}
 	}
 }
 
