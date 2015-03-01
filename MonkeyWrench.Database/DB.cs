@@ -139,7 +139,11 @@ namespace MonkeyWrench
 				DateTime db_now;
 				DateTime machine_now = DateTime.Now;
 
-				db_now = (DateTime) db_now_obj;
+				if (db_now_obj is DateTime) {
+					db_now = (DateTime) db_now_obj;
+				} else {
+					db_now = DateTime.Now;
+				}
 				db_time_difference = db_now - machine_now;
 
 				Logger.Log (2, "DB now: {0:yyyy/MM/dd HH:mm:ss.ffff}, current machine's now: {1:yyyy/MM/dd HH:mm:ss.ffff}, adjusted now: {3}, diff: {2:yyyy/MM/dd HH:mm:ss.ffff} ms", db_now, machine_now, db_time_difference.TotalMilliseconds, Now);
