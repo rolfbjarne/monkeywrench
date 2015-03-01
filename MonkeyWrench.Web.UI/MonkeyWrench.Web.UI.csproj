@@ -233,7 +233,6 @@
     <Content Include="index.aspx" />
     <Content Include="Login.aspx" />
     <Content Include="MonkeyWrench.js" />
-    <Content Include="ReportCommit.aspx" />
     <Content Include="User.aspx" />
     <Content Include="Users.aspx" />
     <Content Include="ViewHtmlReport.aspx" />
@@ -416,13 +415,6 @@
       <AutoGen>True</AutoGen>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
-    <Compile Include="ReportCommit.aspx.cs">
-      <DependentUpon>ReportCommit.aspx</DependentUpon>
-      <SubType>ASPXCodeBehind</SubType>
-    </Compile>
-    <Compile Include="ReportCommit.aspx.designer.cs">
-      <DependentUpon>ReportCommit.aspx</DependentUpon>
     </Compile>
     <Compile Include="User.aspx.cs">
       <DependentUpon>User.aspx</DependentUpon>
