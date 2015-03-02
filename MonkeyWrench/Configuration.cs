@@ -24,6 +24,7 @@ namespace MonkeyWrench
 	public static class Configuration
 	{
 		public static string LogFile = Path.Combine (Path.GetTempPath (), "MonkeyWrench.log");
+		public static string LogDirectory = Path.Combine (Path.GetTempPath (), "wrench");
 		public static long MaxLogSize = 1024 * 1024 * 100; // 100 MB
 		public static string DataDirectory = Path.Combine (Path.Combine (Environment.GetFolderPath (Environment.SpecialFolder.Personal), "monkeywrench"), "data");
 		public static string RevDataDirectory;
@@ -179,6 +180,7 @@ namespace MonkeyWrench
 					RevDataDirectory = node.GetNodeValue (RevDataDirectory);
 				Host = xml.SelectSingleNode ("/MonkeyWrench/Configuration/Host").GetNodeValue (Host);
 				LogFile = xml.SelectSingleNode ("/MonkeyWrench/Configuration/LogFile").GetNodeValue (LogFile);
+				LogDirectory = xml.SelectSingleNode ("/MonkeyWrench/Configuration/LogDirectory").GetNodeValue (LogDirectory);
 				MaxLogSize = long.Parse (xml.SelectSingleNode ("/MonkeyWrench/Configuration/MaxLogSize").GetNodeValue (MaxLogSize.ToString ()));
 				ForceFullUpdate = Boolean.Parse (xml.SelectSingleNode ("/MonkeyWrench/Configuration/ForceFullUpdate").GetNodeValue (ForceFullUpdate.ToString ()));
 				WebServiceUrl = xml.SelectSingleNode ("/MonkeyWrench/Configuration/WebServiceUrl").GetNodeValue (WebServiceUrl);
@@ -222,6 +224,7 @@ namespace MonkeyWrench
 					{"host=", v => Host = v},
 					{"logfile=", v => LogFile = v},
 					{"maxlogsize=", v => MaxLogSize = long.Parse (v)},
+					{"logdirectory=", v => LogDirectory = v},
 					{"forcefullupdate=", v => ForceFullUpdate = Boolean.Parse (v.Trim ())},
 					{"webserviceurl=", v => WebServiceUrl = v},
 					{"webservicepassword=", v => WebServicePassword = v},
@@ -578,6 +581,16 @@ namespace MonkeyWrench
 				WebSiteUrl = new Uri (WebServiceUrl).GetComponents (UriComponents.SchemeAndServer, UriFormat.UriEscaped);	
 			}
 			return WebSiteUrl;
+		}
+
+		public static string GetLogPathForLane (int lane_id)
+		{
+			return Path.Combine (LogDirectory, GetLogFileForLane (lane_id));
+		}
+
+		public static string GetLogFileForLane (int lane_id)
+		{
+			return "lane-" + lane_id.ToString () + ".log";
 		}
 	}
 }
