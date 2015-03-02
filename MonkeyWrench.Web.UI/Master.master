@@ -27,7 +27,7 @@
                     <li class="adminitem"><a href='Users.aspx'>Edit Users</a></li> 
                     <li class="adminitem"><a href='Identities.aspx'>Edit Identities</a></li> 
                     <li class="adminitem"><a href='Notifications.aspx'>Edit Notifications</a></li> 
-                    <li class="adminitem"><a href='Admin.aspx?action=schedule'>Execute scheduler (full update)</a></li>
+                    <li class="adminitem"><a href='Admin.aspx'>Execute scheduler (full update)</a></li>
                     <li class="adminitem"><a href="BuildBotStatus.aspx">View BuildBot status</a></li>
                     <li class="adminitem"><a href="Releases.aspx">View MonkeyWrench releases</a></li>
                     <li class="adminitem"><a href="ViewServerLog.aspx">View Server Log</a></li>
@@ -51,6 +51,7 @@
         </form>
       </div>
 	</div>
+	<input type="hidden" id="idWebServicesUrl" value="<%= MonkeyWrench.Configuration.WebServiceUrl %>" />
 </body>
 </html>
 

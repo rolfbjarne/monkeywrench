@@ -43,6 +43,7 @@ namespace MonkeyWrench
 		public static string LockingAlgorithm = "semaphore";
 		public static string SchedulerAccount = "scheduler";
 		public static string SchedulerPassword;
+		public static int MaxSchedulerThreads = 24;
 		public static string ChildProcessAlgorithm = "pgrep";
 		public static string Platform = ""; // detect automatically
 		public static string AllowedCommitReporterIPs = "";
@@ -196,6 +197,7 @@ namespace MonkeyWrench
 				LockingAlgorithm = xml.SelectSingleNode ("MonkeyWrench/Configuration/LockingAlgorithm").GetNodeValue (LockingAlgorithm);
 				SchedulerAccount = xml.SelectSingleNode ("MonkeyWrench/Configuration/SchedulerAccount").GetNodeValue (SchedulerAccount);
 				SchedulerPassword = xml.SelectSingleNode ("MonkeyWrench/Configuration/SchedulerPassword").GetNodeValue (SchedulerPassword);
+				MaxSchedulerThreads = int.Parse (xml.SelectSingleNode ("MonkeyWrench/Configuration/MaxSchedulerThreads").GetNodeValue (MaxSchedulerThreads.ToString ()));
 				ChildProcessAlgorithm = xml.SelectSingleNode ("MonkeyWrench/Configuration/ChildProcessAlgorithm").GetNodeValue (ChildProcessAlgorithm);
 				Platform = xml.SelectSingleNode ("MonkeyWrench/Configuration/Platform").GetNodeValue (Platform);
 				AllowedCommitReporterIPs = xml.SelectSingleNode ("MonkeyWrench/Configuration/AllowedCommitReporterIPs").GetNodeValue (AllowedCommitReporterIPs);

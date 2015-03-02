@@ -88,6 +88,8 @@
               <xs:element minOccurs="0" maxOccurs="1" name="commit_filter" type="xs:string" />
               <xs:element minOccurs="1" maxOccurs="1" name="traverse_merge" type="xs:boolean" />
               <xs:element minOccurs="1" maxOccurs="1" name="enabled" type="xs:boolean" />
+              <xs:element minOccurs="1" maxOccurs="1" name="changed_date" nillable="true" type="xs:dateTime" />
+              <xs:element minOccurs="0" maxOccurs="1" name="last_revision" type="xs:string" />
             </xs:sequence>
           </xs:extension>
         </xs:complexContent>
@@ -242,7 +244,6 @@
               <xs:element minOccurs="1" maxOccurs="1" name="revisionwork_id" type="xs:int" />
               <xs:element minOccurs="1" maxOccurs="1" name="lane_id" type="xs:int" />
               <xs:element minOccurs="1" maxOccurs="1" name="revision_id" type="xs:int" />
-              <xs:element minOccurs="0" maxOccurs="1" name="revision" type="xs:string" />
               <xs:element minOccurs="0" maxOccurs="1" name="lane" type="xs:string" />
             </xs:sequence>
           </xs:extension>
@@ -2862,6 +2863,17 @@
       <xs:element name="ExecuteSchedulerResponse">
         <xs:complexType />
       </xs:element>
+      <xs:element name="ExecuteSchedulerAsyncForRepositores">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" name="login" type="s0:WebServiceLogin" />
+            <xs:element minOccurs="0" maxOccurs="1" name="repositories" type="s0:ArrayOfString" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="ExecuteSchedulerAsyncForRepositoresResponse">
+        <xs:complexType />
+      </xs:element>
       <xs:element name="ExecuteDeletionDirectives">
         <xs:complexType>
           <xs:sequence>
@@ -3610,6 +3622,12 @@
   <message name="ExecuteSchedulerSoapOut">
     <part name="parameters" element="s0:ExecuteSchedulerResponse" />
   </message>
+  <message name="ExecuteSchedulerAsyncForRepositoresSoapIn">
+    <part name="parameters" element="s0:ExecuteSchedulerAsyncForRepositores" />
+  </message>
+  <message name="ExecuteSchedulerAsyncForRepositoresSoapOut">
+    <part name="parameters" element="s0:ExecuteSchedulerAsyncForRepositoresResponse" />
+  </message>
   <message name="ExecuteDeletionDirectivesSoapIn">
     <part name="parameters" element="s0:ExecuteDeletionDirectives" />
   </message>
@@ -4123,6 +4141,10 @@
       <input message="s0:ExecuteSchedulerSoapIn" />
       <output message="s0:ExecuteSchedulerSoapOut" />
     </operation>
+    <operation name="ExecuteSchedulerAsyncForRepositores">
+      <input message="s0:ExecuteSchedulerAsyncForRepositoresSoapIn" />
+      <output message="s0:ExecuteSchedulerAsyncForRepositoresSoapOut" />
+    </operation>
     <operation name="ExecuteDeletionDirectives">
       <input message="s0:ExecuteDeletionDirectivesSoapIn" />
       <output message="s0:ExecuteDeletionDirectivesSoapOut" />
@@ -4612,6 +4634,10 @@
     <operation name="ExecuteScheduler">
       <input message="s0:ExecuteSchedulerSoapIn" />
       <output message="s0:ExecuteSchedulerSoapOut" />
+    </operation>
+    <operation name="ExecuteSchedulerAsyncForRepositores">
+      <input message="s0:ExecuteSchedulerAsyncForRepositoresSoapIn" />
+      <output message="s0:ExecuteSchedulerAsyncForRepositoresSoapOut" />
     </operation>
     <operation name="ExecuteDeletionDirectives">
       <input message="s0:ExecuteDeletionDirectivesSoapIn" />
@@ -5724,6 +5750,15 @@
         <soap:body use="literal" />
       </output>
     </operation>
+    <operation name="ExecuteSchedulerAsyncForRepositores">
+      <soap:operation soapAction="http://monkeywrench.novell.com/ExecuteSchedulerAsyncForRepositores" style="document" />
+      <input>
+        <soap:body use="literal" />
+      </input>
+      <output>
+        <soap:body use="literal" />
+      </output>
+    </operation>
     <operation name="ExecuteDeletionDirectives">
       <soap:operation soapAction="http://monkeywrench.novell.com/ExecuteDeletionDirectives" style="document" />
       <input>
@@ -6818,6 +6853,15 @@
     </operation>
     <operation name="ExecuteScheduler">
       <soap12:operation soapAction="http://monkeywrench.novell.com/ExecuteScheduler" style="document" />
+      <input>
+        <soap12:body use="literal" />
+      </input>
+      <output>
+        <soap12:body use="literal" />
+      </output>
+    </operation>
+    <operation name="ExecuteSchedulerAsyncForRepositores">
+      <soap12:operation soapAction="http://monkeywrench.novell.com/ExecuteSchedulerAsyncForRepositores" style="document" />
       <input>
         <soap12:body use="literal" />
       </input>

@@ -36,14 +36,53 @@ namespace MonkeyWrench.Database
 		/// <returns></returns>
 		public static List<DBLaneDependency> GetDependencies (DB db, DBLane lane)
 		{
+			return GetDependencies (db, lane == null ? 0 : lane.id);
+		}
+
+		/// <summary>
+		/// Returns a list of all the dependencies for the specified lane.
+		/// Returns null if there are no dependencies for the lane.
+		/// </summary>
+		/// <param name="lane"></param>
+		/// <returns></returns>
+		public static List<DBLaneDependency> GetDependencies (DB db, int lane_id)
+		{
 			List<DBLaneDependency> result = null;
 
 			using (IDbCommand cmd = db.CreateCommand ()) {
 				cmd.CommandText = "SELECT * FROM LaneDependency";
-				if (lane != null) {
+				if (lane_id > 0) {
 					cmd.CommandText += " WHERE lane_id = @lane_id";
-					DB.CreateParameter (cmd, "lane_id", lane.id);
+					DB.CreateParameter (cmd, "lane_id", lane_id);
 				}
+				cmd.CommandText += ";";
+
+				using (IDataReader reader = cmd.ExecuteReader ()) {
+					while (reader.Read ()) {
+						if (result == null)
+							result = new List<DBLaneDependency> ();
+						result.Add (new DBLaneDependency (reader));
+					}
+				}
+			}
+
+			return result;
+		}
+
+		/// <summary>
+		/// Returns a list of all the dependencies for the specified lane.
+		/// Returns null if there are no dependencies for the lane.
+		/// </summary>
+		/// <param name="lane"></param>
+		/// <returns></returns>
+		public static List<DBLaneDependency> GetDependentOn (DB db, int dependent_lane_id)
+		{
+			List<DBLaneDependency> result = null;
+
+			using (IDbCommand cmd = db.CreateCommand ()) {
+				cmd.CommandText = "SELECT * FROM LaneDependency";
+				cmd.CommandText += " WHERE dependent_lane_id = @dependent_lane_id";
+				DB.CreateParameter (cmd, "dependent_lane_id", dependent_lane_id);
 				cmd.CommandText += ";";
 
 				using (IDataReader reader = cmd.ExecuteReader ()) {

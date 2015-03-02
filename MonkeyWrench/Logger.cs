@@ -15,9 +15,143 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Diagnostics;
+using System.Threading;
 
 namespace MonkeyWrench
 {
+	public interface ILogger {
+		void Log (string format, params object[] args);
+		void LogRaw (string message);
+		void LogTo (string logName, string format, params object[] args);
+		void LogToRaw (string logName, string message);
+	}
+
+	public class MainLogger : ILogger {
+		public void Log (string format, params object[] args)
+		{
+			Logger.Log (format, args);
+		}
+
+		public void LogRaw (string message)
+		{
+			Logger.LogRaw (message);
+		}
+
+		public void LogTo (string logName, string format, params object[] args)
+		{
+			Logger.LogTo (logName, format, args);
+		}
+
+		public void LogToRaw (string logName, string message)
+		{
+			Logger.LogToRaw (logName, message);
+		}
+	}
+
+	public class NamedLogger  : ILogger
+	{
+		string name;
+
+		public NamedLogger (string logName)
+		{
+			this.name = logName;
+		}
+
+		public void Log (string format, params object[] args)
+		{
+			Logger.LogTo (name, format, args);
+		}
+
+		public void LogRaw (string message)
+		{
+			Logger.LogToRaw (name, message);
+		}
+
+		public void LogTo (string logName, string format, params object[] args)
+		{
+			Logger.LogTo (name, format, args);
+			Logger.LogTo (logName, format, args);
+		}
+
+		public void LogToRaw (string logName, string message)
+		{
+			Logger.LogToRaw (name, message);
+			Logger.LogToRaw (logName, message);
+		}
+	}
+
+	public class AggregatedLogger : ILogger
+	{
+		IEnumerable<ILogger> logs;
+
+		public AggregatedLogger (params ILogger[] logs)
+			: this ((IEnumerable<ILogger>) logs)
+		{
+		}
+
+		public AggregatedLogger (IEnumerable<ILogger> logs)
+		{
+			this.logs = logs;
+		}
+
+		public void Log (string format, params object[] args)
+		{
+			foreach (var l in logs)
+				l.Log (format, args);
+		}
+
+		public void LogRaw (string message)
+		{
+			foreach (var l in logs)
+				l.LogRaw (message);
+		}
+
+		public void LogTo (string logName, string format, params object[] args)
+		{
+			foreach (var l in logs)
+				l.LogTo (logName, format, args);
+		}
+
+		public void LogToRaw (string logName, string message)
+		{
+			foreach (var l in logs)
+				l.LogToRaw (logName, message);
+		}
+	}
+
+	public class MemoryLogger : ILogger
+	{
+		StringBuilder sb = new StringBuilder ();
+
+		public void Log (string format, params object[] args)
+		{
+			lock (sb)
+				sb.Append (Logger.FormatLog (format, args));
+		}
+
+		public void LogRaw (string message)
+		{
+			lock (sb)
+				sb.Append (message);
+		}
+
+		public void LogTo (string logName, string format, params object[] args)
+		{
+			Log (format, args);
+		}
+
+		public void LogToRaw (string logName, string message)
+		{
+			LogRaw (message);
+		}
+
+		public override string ToString ()
+		{
+			lock (sb)
+				return sb.ToString ();
+		}
+	}
+
 	public class Logger
 	{
 		private readonly static int ProcessID = Process.GetCurrentProcess ().Id;
@@ -27,7 +161,7 @@ namespace MonkeyWrench
 			return verbosity <= Configuration.LogVerbosity;
 		}
 
-		static string FormatLog (string format, params object [] args)
+		public static string FormatLog (string format, params object [] args)
 		{
 			string message;
 			string [] lines;
@@ -47,6 +181,11 @@ namespace MonkeyWrench
 			Log (Configuration.LogVerbosity, format, args);
 		}
 
+		public static void LogTo (string log, string format, params object [] args)
+		{
+			LogTo (Configuration.LogVerbosity, log, format, args);
+		}
+
 		public static void Log (int verbosity, string format, params object [] args)
 		{
 			try {
@@ -60,12 +199,34 @@ namespace MonkeyWrench
 			}
 		}
 
+		public static void LogTo (int verbosity, string log, string format, params object [] args)
+		{
+			try {
+				if (!IsVerbosityIncluded (verbosity))
+					return;
+
+				LogToRaw (log, FormatLog (format, args));
+			} catch (Exception ex) {
+				Console.WriteLine (FormatLog ("Builder.Logger: An exception occurred while logging: {0}", ex.ToString ()));
+				throw;
+			}
+		}
+
 		public static void LogRaw (string message)
 		{
 			if (string.IsNullOrEmpty (Configuration.LogFile)) {
 				Console.Write (message);
 			} else {
 				AppendFile (Configuration.LogFile, message);
+			}
+		}
+
+		public static void LogToRaw (string log, string message)
+		{
+			if (string.IsNullOrEmpty (Configuration.LogDirectory)) {
+				Console.Write (message);
+			} else {
+				AppendFile (Path.Combine (Configuration.LogDirectory, log), message);
 			}
 		}
 

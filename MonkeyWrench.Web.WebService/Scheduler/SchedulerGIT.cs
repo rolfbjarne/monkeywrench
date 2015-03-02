@@ -1,4 +1,4 @@
-﻿/*
+/*
  * SchedulerGIT.cs
  *
  * Authors:
@@ -27,348 +27,263 @@ namespace MonkeyWrench.Scheduler
 {
 	class GITUpdater : SchedulerBase
 	{
-		/* Save a list of fetches done, to not duplicate work when there are several lanes with the same repository */
-		private List<string> fetched_directories = new List<string> ();
-
 		class GitEntry
 		{
 			public string revision;
 			public string author;
 			public string message;
 			public string timestamp;
-			public List<string> files;
 		}
 
-		public GITUpdater (bool ForceFullUpdate)
-			: base (ForceFullUpdate)
+		HashSet<string> repositories;
+
+		public GITUpdater (HashSet<string> repositories, bool forceFullUpdate)
+			: base (forceFullUpdate)
 		{
+			this.repositories = repositories;
 		}
 
-		public override void Clear ()
+		public void UpdateRevisionsInDB (DB db, DBLane lane, List<DBHost> hosts, List<DBHostLane> hostlanes, ILogger log)
 		{
-			base.Clear ();
+			bool update_steps = false;
+			string [] min_revisions;
+			string [] max_revisions;
+			string [] repositories;
 
-			/* We don't clear fetched_directories here, since it's a per-run variable */
-		}
+			log.Log ("Updating '{0}', ForceFullUpdate: {1}", lane.lane, ForceFullUpdate);
 
-		public override string Type
-		{
-			get { return "GIT"; }
-		}
-
-		protected override int CompareRevisions (string repository, string a, string b)
-		{
-			throw new NotImplementedException ();
-		}
-
-		// a tuple, each path and the first revision (in a list of changesets) the path was modified
-		private List<string> paths;
-		private List<int> min_revisions;
-
-		protected override void AddChangeSet (XmlDocument doc)
-		{
-			XmlNode rev = doc.SelectSingleNode ("/monkeywrench/changeset");
-			int revision = int.Parse (rev.Attributes ["revision"].Value);
-			string root = rev.Attributes ["root"].Value;
-			string sc = rev.Attributes ["sourcecontrol"].Value;
-
-			if (sc != "git")
-				return;
-
-			if (paths == null) {
-				paths = new List<string> ();
-				min_revisions = new List<int> ();
-			}
-
-			foreach (XmlNode node in doc.SelectNodes ("/monkeywrench/changeset/directories/directory")) {
-				Logger.Log ("GIT: Checking changeset directory: '{0}'", node.InnerText);
-				string dir = root + "/" + node.InnerText;
-				int existing_rev;
-				int existing_index = paths.IndexOf (dir);
-
-				if (existing_index > 0) {
-					existing_rev = min_revisions [existing_index];
-					if (existing_rev > revision)
-						continue;
+			try {
+				repositories = lane.repository.Split (new char [] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+				min_revisions = splitWithMinimumElements (lane.min_revision, repositories.Length);
+				max_revisions = splitWithMinimumElements (lane.max_revision, repositories.Length);
+				log.Log ("Updating {0} repositories", repositories.Length);
+				for (int i = 0; i < repositories.Length; i++) {
+					UpdateRevisionsInDBInternal (log, db, lane, repositories [i], hosts, hostlanes, min_revisions [i], max_revisions [i]);
 				}
-				Logger.Log ("GIT: Added changeset for {1} with path: '{0}'", dir, revision);
-				paths.Add (dir);
-				min_revisions.Add (revision);
+
+				log.Log ("Updating db for lane '{0}'... [Done], update_steps: {1}", lane.lane, update_steps);
+			} catch (Exception ex) {
+				log.Log ("There was an exception while updating db for lane '{0}': {1}", lane.lane, ex.ToString ());
 			}
 		}
 
-		protected override bool UpdateRevisionsInDBInternal (DB db, DBLane lane, string repository, Dictionary<string, DBRevision> revisions, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
+		protected void UpdateRevisionsInDBInternal (ILogger logger, DB db, DBLane lane, string repository, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
 		{
 			string revision;
-			bool update_steps = false;
-			List<DateTime> used_dates;
-			DBRevision r;
+			var used_dates = new List<DateTime> ();
 			List<GitEntry> log;
+			var sql = new StringBuilder ();
 
 			if (string.IsNullOrEmpty (max_revision))
 				max_revision = "remotes/origin/master";
 
-			Log ("Updating lane: '{0}', repository: '{1}' min revision: '{2}' max revision: '{3}'", lane.lane, repository, min_revision, max_revision);
+			logger.Log ("Updating lane: '{0}', repository: '{1}' min revision: '{2}' max revision: '{3}'", lane.lane, repository, min_revision, max_revision);
 
-			log = GetGITLog (lane, repository, min_revision, max_revision);
+			log = GetGITLog (logger, lane, repository, min_revision, max_revision);
 
 			if (log == null || log.Count == 0) {
-				Log ("Didn't get a git log for '{0}'", repository);
-				return false;
+				logger.Log ("Didn't get a git log for '{0}'", repository);
+				return;
 			}
 
-			Log ("Got {0} log records", log.Count);
+			logger.Log ("Got {0} log records", log.Count);
 
-			used_dates = new List<DateTime> ();
+			using (var cmd = db.CreateCommand ()) {
+				foreach (GitEntry entry in log) {
+					string hash = entry.revision;
+					string unix_timestamp_str = entry.timestamp;
+					long unix_timestamp;
+					string author = entry.author;
+					DateTime date;
 
-			foreach (GitEntry entry in log) {
-				string hash = entry.revision;
-				string unix_timestamp_str = entry.timestamp;
-				long unix_timestamp;
-				string author = entry.author;
-				string msg = entry.message;
-				DateTime date;
-
-				if (!long.TryParse (unix_timestamp_str, out unix_timestamp)) {
-					/* here something is wrong, this way the commit shows up as the first one so that it's easy to spot and start investigating */
-					date = DateTime.Now.AddYears (20);
-					Log ("Could not parse timestamp '{0}' for revision '{1}' in lane '{2}' in repository {3}", unix_timestamp_str, entry.revision, lane.lane, repository);
-				} else {
-					const long EPOCH_DIFF = 0x019DB1DED53E8000; /* 116444736000000000 nsecs */
-					const long RATE_DIFF = 10000000; /* 100 nsecs */
-					date = DateTime.FromFileTimeUtc ((unix_timestamp * RATE_DIFF) + EPOCH_DIFF);
-				}
-
-				/* 
-				 * The timestamp resolution on my machine seems to be 1 second,
-				 * which means that if you commit fast enough you'll get
-				 * commits with the same date. This is a very bad thing since
-				 * the commits are order by the commit date, and if two commits
-				 * have the same date the order they're build / shown is random
-				 * (the db decides whatever it feels like). Work around this by
-				 * keeping a list of used dates and if the date has already
-				 * used, add a millisecond to it (and try again). Note that
-				 * there is still a possibility of duplicate dates: if there
-				 * already is a revision in the database with this date (from
-				 * a previous run of the scheduler).
-				 * 
-				 * It may seem like there is a very small possibility of having
-				 * two commits within a second, but this happens all the time
-				 * for our test suite.
-				 */
-				while (used_dates.Contains (date)) {
-					date = date.AddMilliseconds (1);
-				}
-				used_dates.Add (date);
-
-				revision = hash;
-
-				if (revision == null)
-					continue;
-
-				if (revisions.ContainsKey (revision)) {
-					/* Check if we've saved the wrong date earlier and fix it */
-					if (revisions [revision].date > new DateTime (2030, 1, 1)) {
-						/* Hopefully this code will not stay here for 20 years */
-						revisions [revision].date = date;
-						revisions [revision].Save (db);
-						Log ("Detected wrong date in revision '{0}' in lane '{1}' in repository {2}, fixing it", revision, lane.lane, repository);
-				}
-					// Log (2, "Already got {0}", revision);
-					continue;
-				}
-
-				if (!string.IsNullOrEmpty (lane.commit_filter)) {
-					FetchFiles (entry, repository);
-					if (DoesFilterExclude (entry, lane.commit_filter))
+					if (!long.TryParse (unix_timestamp_str, out unix_timestamp)) {
+						/* here something is wrong, this way the commit shows up as the first one so that it's easy to spot and start investigating */
+						date = DateTime.Now.AddYears (20);
+						logger.Log ("Could not parse timestamp '{0}' for revision '{1}' in lane '{2}' in repository {3}", unix_timestamp_str, entry.revision, lane.lane, repository);
 						continue;
-				}
-
-				r = new DBRevision ();
-				r.revision = revision;
-				r.lane_id = lane.id;
-
-				r.author = author;
-				if (string.IsNullOrEmpty (r.author)) {
-					Log ("No author specified in r{0} in {1}", r.revision, repository);
-					r.author = "?";
-				}
-				r.date = date;
-				if (!string.IsNullOrEmpty (msg)) {
-					r.log_file_id = db.UploadString (msg, ".log", false).id;
-				} else {
-					Log ("No msg specified in r{0} in {1}", r.revision, repository);
-					r.log_file_id = null;
-				}
-
-				r.Save (db);
-
-				update_steps = true;
-				Log (1, "Saved revision '{0}' for lane '{1}' author: {2}, date: {3:yyyy/MM/dd HH:mm:ss.ffffff} {5} {6}", r.revision, lane.lane, r.author, r.date, msg, unix_timestamp, unix_timestamp_str);
-			}
-
-			return update_steps;
-		}
-
-		private bool DoesFilterExclude (GitEntry entry, string filter)
-		{
-			string [] expressions;
-			Regex [] regexes;
-			bool include_all = false;
-
-			if (string.IsNullOrEmpty (filter))
-				return false;
-
-			if (filter.StartsWith ("ExcludeAllExcept:")) {
-				include_all = false;
-			} else if (filter.StartsWith ("IncludeAllExcept:")) {
-				include_all = true;
-			} else {
-				Log ("Invalid commit filter: {0}, including all commits.", filter);
-				return false;
-			}
-
-			expressions = filter.Substring (filter.IndexOf (':') + 1).Trim ().Split (';');
-			if (expressions.Length > 0) {
-				regexes = new Regex [expressions.Length];
-				for (int r = 0; r < regexes.Length; r++) {
-					regexes [r] = new Regex (FileUtilities.GlobToRegExp (expressions [r].Trim ()));
-				}
-
-				for (int f = 0; f < entry.files.Count; f++) {
-					for (int r = 0; r < regexes.Length; r++) {
-						if (regexes [r].IsMatch (entry.files [f])) {
-							return include_all;
-						}
-					}
-				}
-			}
-
-			return !include_all;
-		}
-
-		private void FetchFiles (GitEntry entry, string repository)
-		{
-			try {
-				string cache_dir = Configuration.GetSchedulerRepositoryCacheDirectory (repository);
-				StringBuilder stderr_log = new StringBuilder ();
-
-				entry.files = new List<string> ();
-
-				using (Process git = new Process ()) {
-					git.StartInfo.FileName = "git";
-					git.StartInfo.Arguments = "show --name-only --pretty='format:' " + entry.revision;
-					Log ("Executing: '{0} {1}' in {2}", git.StartInfo.FileName, git.StartInfo.Arguments, cache_dir);
-					git.StartInfo.WorkingDirectory = cache_dir;
-					git.StartInfo.UseShellExecute = false;
-					git.StartInfo.RedirectStandardOutput = true;
-					git.StartInfo.RedirectStandardError = true;
-					git.StartInfo.WorkingDirectory = cache_dir;
-
-					Thread stdout = new Thread (delegate ()
-					{
-						string line;
-						while ((line = git.StandardOutput.ReadLine ()) != null) {
-							if (string.IsNullOrEmpty (line.Trim ()))
-								continue;
-							entry.files.Add (line);
-						}
-					});
-					Thread stderr = new Thread (delegate ()
-					{
-						string line;
-						while (null != (line = git.StandardError.ReadLine ())) {
-							Console.Error.WriteLine (line);
-							stderr_log.AppendLine (line);
-						}
-					});
-					git.Start ();
-					stdout.Start ();
-					stderr.Start ();
-					// Wait 10 minutes for git to finish, otherwise abort.
-					if (!git.WaitForExit (1000 * 60 * 10)) {
-						Log ("Getting files took more than 10 minutes, aborting.");
-						try {
-							git.Kill ();
-							git.WaitForExit (10000); // Give the process 10 more seconds to completely exit.
-						} catch (Exception ex) {
-							Log ("Aborting file retrieval failed: {0}", ex.ToString ());
-						}
-					}
-
-					stdout.Join ((int) TimeSpan.FromMinutes (1).TotalMilliseconds);
-					stderr.Join ((int) TimeSpan.FromMinutes (1).TotalMilliseconds);
-
-					if (git.HasExited && git.ExitCode == 0) {
-						Log ("Got {0} files successfully", entry.files.Count);
 					} else {
-						Log ("Didn't get files, HasExited: {0}, ExitCode: {1}, stderr: {2}", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A", stderr_log.ToString ());
+						const long EPOCH_DIFF = 0x019DB1DED53E8000; /* 116444736000000000 nsecs */
+						const long RATE_DIFF = 10000000; /* 100 nsecs */
+						date = DateTime.FromFileTimeUtc ((unix_timestamp * RATE_DIFF) + EPOCH_DIFF);
 					}
+
+					/* 
+					 * The timestamp resolution on my machine seems to be 1 second,
+					 * which means that if you commit fast enough you'll get
+					 * commits with the same date. This is a very bad thing since
+					 * the commits are order by the commit date, and if two commits
+					 * have the same date the order they're build / shown is random
+					 * (the db decides whatever it feels like). Work around this by
+					 * keeping a list of used dates and if the date has already
+					 * used, add a millisecond to it (and try again). Note that
+					 * there is still a possibility of duplicate dates: if there
+					 * already is a revision in the database with this date (from
+					 * a previous run of the scheduler).
+					 * 
+					 * It may seem like there is a very small possibility of having
+					 * two commits within a second, but this happens all the time
+					 * for our test suite.
+					 */
+					while (used_dates.Contains (date)) {
+						date = date.AddMilliseconds (1);
+					}
+					used_dates.Add (date);
+
+					revision = hash;
+
+					if (revision == null)
+						continue;
+
+					sql.AppendFormat ("INSERT INTO Revision (lane_id, revision, author, date) SELECT {0}, '{1}', @author_{1}, @date_{1} WHERE NOT EXISTS (SELECT revision FROM Revision WHERE revision = '{1}');\n",
+						lane.id, revision);
+					DB.CreateParameter (cmd, "@author_" + revision, author ?? "?");
+					DB.CreateParameter (cmd, "@date_" + revision, date);
+
+					lane.last_revision = revision;
 				}
-			} catch (Exception ex) {
-				Log ("Exception while trying to get files for commit {1} {0}", ex.ToString (), entry.revision);
+
+				sql.AppendFormat ("UPDATE Lane SET last_revision = '{0}' where id = {1};\n", lane.last_revision, lane.id);
+
+				cmd.CommandText = sql.ToString ();
+
+				try {
+					int rv = cmd.ExecuteNonQuery ();
+					logger.Log ("Updated {0} records of {1} logs (+ 1 lane update)", rv - 1, log.Count);
+				} catch (Exception ex) {
+					logger.Log ("Failed to execute sql query: {0}\n{1}", ex.Message, cmd.CommandText);
+					throw;
+				}
+			}
+
+		}
+
+		public Dictionary<string, MemoryLogger> FetchGitRepositories (ILogger log)
+		{
+			var rv = new Dictionary<string, MemoryLogger> ();
+			var watch = new Stopwatch ();
+
+			watch.Start ();
+			log.Log ("Fetching {0} repositories", repositories.Count);
+			int c = 0;
+			foreach (var r in repositories)
+				log.Log (" #{0}: {1}", ++c, r);
+
+			var repos = new System.Collections.Concurrent.ConcurrentQueue<string> (repositories);
+			var threadCount = Math.Min (Configuration.MaxSchedulerThreads, repositories.Count);
+			var evt = new CountdownEvent (threadCount);
+
+			ParameterizedThreadStart cmd = (obj) =>
+			{
+				try {
+					string repo;
+					while (repos.TryDequeue (out repo)) {
+						var rlog = new MemoryLogger ();
+						var mlog = new AggregatedLogger (log, rlog);
+						try {
+							FetchGitRepository (repo, mlog);
+						} catch (Exception ex) {
+							log.Log ("Exception while fetching git repository {0}: {1}", repo, ex);
+						}
+						lock (rv)
+							rv.Add (repo, rlog);
+					}
+				} finally {
+					evt.Signal ();
+				}
+			};
+
+			if (repos.Count == 1) {
+				cmd (null);
+			} else {
+				// Fetch multiple git repositories in parallel.
+				// Don't use the threadpool since that may starve incoming web requests.
+				for (int i = 0; i < threadCount; i++) {
+					var t = new Thread (cmd);
+					t.IsBackground = true;
+					t.Start ();
+				}
+			}
+
+			if (!evt.Wait (TimeSpan.FromMinutes (60))) {
+				log.Log ("Failed to fetch {0} repositories in 60 minutes.", repositories.Count);
+			} else {
+				log.Log ("Fetched {0} repositories in {1} seconds", repositories.Count, watch.Elapsed.TotalSeconds);
+			}
+			return rv;
+		}
+
+		static void FetchGitRepository (string repository, ILogger log)
+		{
+			// Updating the repository cache
+			string cache_dir = Configuration.GetSchedulerRepositoryCacheDirectory (repository);
+			if (!Directory.Exists (cache_dir))
+				Directory.CreateDirectory (cache_dir);
+
+			// Download/update the cache
+			using (Process git = new Process ()) {
+				var watch = new Stopwatch ();
+				watch.Start ();
+				git.StartInfo.FileName = "git";
+				int timeout = 10;
+				if (!Directory.Exists (Path.Combine (cache_dir, ".git"))) {
+					git.StartInfo.Arguments = "clone --progress --no-checkout " + repository + " .";
+					timeout = 60; // clones can be *slow*.
+				} else {
+					git.StartInfo.Arguments = "fetch --progress";
+				}
+				git.StartInfo.WorkingDirectory = cache_dir;
+				git.StartInfo.UseShellExecute = false;
+				git.StartInfo.RedirectStandardOutput = true;
+				git.StartInfo.RedirectStandardError = true;
+				git.StartInfo.StandardOutputEncoding = System.Text.Encoding.UTF8;
+				git.StartInfo.StandardErrorEncoding = System.Text.Encoding.UTF8;
+				log.Log ("Fetching git repository: '{0} {1}' in {2}", git.StartInfo.FileName, git.StartInfo.Arguments, cache_dir);
+				git.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e)
+				{
+					if (e.Data == null)
+						return;
+					lock (log)
+						log.Log ("STDOUT for {1}: {0}", e.Data, repository);
+				};
+				git.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e)
+				{
+					if (e.Data == null)
+						return;
+					lock (log)
+						log.Log ("STDERR for {1}: {0}", e.Data, repository);
+				};
+				git.Start ();
+				git.BeginOutputReadLine ();
+				git.BeginErrorReadLine ();
+
+				if (!git.WaitForExit (1000 * 60 * timeout /* 60 minutes */)) {
+					log.Log ("Could not fetch repository {0}, git didn't finish in {1} minutes.", repository, timeout);
+					return;
+				}
+
+				if (!git.HasExited || git.ExitCode != 0) {
+					log.Log ("Could not fetch repository {2}, HasExited: {0}, ExitCode: {1}", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A", repository);
+					return;
+				}
+				log.Log ("Fetched git repository {1} in {0} seconds", watch.Elapsed.TotalSeconds, repository);
 			}
 		}
 
-		private List<GitEntry> GetGITLog (DBLane dblane, string repository, string min_revision, string max_revision)
+		private List<GitEntry> GetGITLog (ILogger log, DBLane dblane, string repository, string min_revision, string max_revision)
 		{
 			List<GitEntry> result = null;
 
 			try {
-				Log ("Retrieving log for '{0}', repository: '{1}', min_revision: {2} max_revision: {3}", dblane.lane, repository, min_revision, max_revision);
+				log.Log ("Retrieving log for '{0}', repository: '{1}', min_revision: {2} max_revision: {3}", dblane.lane, repository, min_revision, max_revision);
 
 				// Updating the repository cache
 				string cache_dir = Configuration.GetSchedulerRepositoryCacheDirectory (repository);
 				if (!Directory.Exists (cache_dir))
 					Directory.CreateDirectory (cache_dir);
 
-				// Download/update the cache
-				using (Process git = new Process ()) {
-					DateTime git_start = DateTime.Now;
-					if (fetched_directories.Contains (repository)) {
-						Log ("Not fetching repository '{0}', it has already been fetched in this run", repository);
-					} else {
-						git.StartInfo.FileName = "git";
-						if (!Directory.Exists (Path.Combine (cache_dir, ".git"))) {
-							git.StartInfo.Arguments = "clone --no-checkout " + repository + " .";
-						} else {
-							git.StartInfo.Arguments = "fetch";
-						}
-						git.StartInfo.WorkingDirectory = cache_dir;
-						git.StartInfo.UseShellExecute = false;
-						git.StartInfo.RedirectStandardOutput = true;
-						git.StartInfo.RedirectStandardError = true;
-						git.StartInfo.StandardOutputEncoding = System.Text.Encoding.UTF8;
-						git.StartInfo.StandardErrorEncoding = System.Text.Encoding.UTF8;
-						Log ("Executing: '{0} {1}' in {2}", git.StartInfo.FileName, git.StartInfo.Arguments, cache_dir);
-						git.OutputDataReceived += delegate (object sender, DataReceivedEventArgs e)
-						{
-							if (e.Data == null)
-								return;
-							Log ("FETCH: {0}", e.Data);
-						};
-						git.ErrorDataReceived += delegate (object sender, DataReceivedEventArgs e)
-						{
-							if (e.Data == null)
-								return;
-							Log ("FETCH STDERR: {0}", e.Data);
-						};
-						git.Start ();
-						git.BeginOutputReadLine ();
-						git.BeginErrorReadLine ();
-
-						if (!git.WaitForExit (1000 * 60 * 10 /* 10 minutes */)) {
-							Log ("Could not fetch repository, git didn't finish in 10 minutes.");
-							return null;
-						}
-
-						if (!git.HasExited || git.ExitCode != 0) {
-							Log ("Could not fetch repository, HasExited: {0}, ExitCode: {1}", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A");
-							return null;
-						}
-						fetched_directories.Add (repository);
-						Log ("Fetched git repository in {0} seconds", (DateTime.Now - git_start).TotalSeconds);
-					}
+				if (!ForceFullUpdate && !string.IsNullOrEmpty (dblane.last_revision)) {
+					min_revision = dblane.last_revision;
+					log.Log ("Using last revision {0} for {1}", min_revision, dblane.lane);
 				}
 
 				string range = string.Empty;
@@ -386,7 +301,7 @@ namespace MonkeyWrench.Scheduler
 					if (!dblane.traverse_merge)
 						git.StartInfo.Arguments += "--first-parent ";
 					git.StartInfo.Arguments += range;
-					Log ("Executing: '{0} {1}' in {2}", git.StartInfo.FileName, git.StartInfo.Arguments, cache_dir);
+					log.Log ("Executing: '{0} {1}' in {2}", git.StartInfo.FileName, git.StartInfo.Arguments, cache_dir);
 					git.StartInfo.WorkingDirectory = cache_dir;
 					git.StartInfo.UseShellExecute = false;
 					git.StartInfo.RedirectStandardOutput = true;
@@ -413,7 +328,9 @@ namespace MonkeyWrench.Scheduler
 								if (result == null)
 									result = new List<GitEntry> ();
 								current.message = builder.ToString ();
-								result.Add (current);
+								
+								if (current.revision != null)
+									result.Add (current);
 								current = new GitEntry ();
 								in_header = true;
 								builder.Length = 0;
@@ -436,7 +353,7 @@ namespace MonkeyWrench.Scheduler
 											current.timestamp = header.Substring (gt + 1).Trim ();
 											current.timestamp = current.timestamp.Substring (0, current.timestamp.IndexOf (' ')).Trim ();
 										} else {
-											Logger.Log ("Could not find timestamp in committer line");
+											log.Log ("Could not find timestamp in committer line");
 										}
 									} else {
 										// do nothing
@@ -452,7 +369,7 @@ namespace MonkeyWrench.Scheduler
 					{
 						string line;
 						while (null != (line = git.StandardError.ReadLine ())) {
-							Console.Error.WriteLine (line);
+							log.Log ("STDERR for {0}: {1}", repository, line);
 						}
 					});
 					git.Start ();
@@ -460,12 +377,12 @@ namespace MonkeyWrench.Scheduler
 					stderr.Start ();
 					// Wait 10 minutes for git to finish, otherwise abort.
 					if (!git.WaitForExit (1000 * 60 * 10)) {
-						Log ("Getting log took more than 10 minutes, aborting.");
+						log.Log ("Getting log took more than 10 minutes, aborting.");
 						try {
 							git.Kill ();
 							git.WaitForExit (10000); // Give the process 10 more seconds to completely exit.
 						} catch (Exception ex) {
-							Log ("Aborting log retrieval failed: {0}", ex.ToString ());
+							log.Log ("Aborting log retrieval failed: {0}", ex.ToString ());
 						}
 					}
 
@@ -473,15 +390,15 @@ namespace MonkeyWrench.Scheduler
 					stderr.Join ((int) TimeSpan.FromMinutes (1).TotalMilliseconds);
 
 					if (git.HasExited && git.ExitCode == 0) {
-						Log ("Got log successfully in {0} seconds", (DateTime.Now - git_start).TotalSeconds);
+						log.Log ("Got log successfully in {0} seconds", (DateTime.Now - git_start).TotalSeconds);
 						return result;
 					} else {
-						Log ("Didn't get log, HasExited: {0}, ExitCode: {1}", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A");
+						log.Log ("Didn't get log, HasExited: {0}, ExitCode: {1}", git.HasExited, git.HasExited ? git.ExitCode.ToString () : "N/A");
 						return null;
 					}
 				}
 			} catch (Exception ex) {
-				Log ("Exception while trying to get svn log: {0}", ex.ToString ());
+				log.Log ("Exception while trying to get git log: {0}", ex.ToString ());
 				return null;
 			}
 		}
@@ -547,3 +464,4 @@ namespace MonkeyWrench.Scheduler
 
 	}
 }
+

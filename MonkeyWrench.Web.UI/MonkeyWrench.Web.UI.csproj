@@ -249,6 +249,8 @@
     <Content Include="ViewServerLog.aspx" />
     <Content Include="GetLatest.aspx" />
     <Content Include="ErrorPage.aspx" />
+    <Content Include="ViewLane.js" />
+    <Content Include="Admin.js" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Admin.aspx.cs">

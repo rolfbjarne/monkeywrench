@@ -2798,6 +2798,26 @@ namespace MonkeyWrench.Web.WebServices {
         }
         
         /// <remarks/>
+        [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/ExecuteSchedulerForRepositories", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
+        public void ExecuteSchedulerForRepositories(WebServiceLogin login, string[] repositories) {
+            this.Invoke("ExecuteSchedulerForRepositories", new object[] {
+                        login,
+                        repositories});
+        }
+        
+        /// <remarks/>
+        public System.IAsyncResult BeginExecuteSchedulerForRepositories(WebServiceLogin login, string[] repositories, System.AsyncCallback callback, object asyncState) {
+            return this.BeginInvoke("ExecuteSchedulerForRepositories", new object[] {
+                        login,
+                        repositories}, callback, asyncState);
+        }
+        
+        /// <remarks/>
+        public void EndExecuteSchedulerForRepositories(System.IAsyncResult asyncResult) {
+            this.EndInvoke(asyncResult);
+        }
+        
+        /// <remarks/>
         [System.Web.Services.Protocols.SoapDocumentMethodAttribute("http://monkeywrench.novell.com/ExecuteDeletionDirectives", RequestNamespace="http://monkeywrench.novell.com/", ResponseNamespace="http://monkeywrench.novell.com/", Use=System.Web.Services.Description.SoapBindingUse.Literal, ParameterStyle=System.Web.Services.Protocols.SoapParameterStyle.Wrapped)]
         public void ExecuteDeletionDirectives(WebServiceLogin login) {
             this.Invoke("ExecuteDeletionDirectives", new object[] {

@@ -2332,16 +2332,7 @@ WHERE Work.revisionwork_id = @revisionwork_id ";
 
 				// Check if any other lane depends on this one
 				if (response.RevisionWorkCompleted) {
-					using (IDbCommand cmd = db.CreateCommand ()) {
-						cmd.CommandText = "SELECT 1 FROM LaneDependency WHERE dependent_lane_id = @lane_id LIMIT 1;";
-						DB.CreateParameter (cmd, "lane_id", rw.lane_id);
-
-						object value = cmd.ExecuteScalar ();
-						if (value is int) {
-							// If so, run the scheduler
-							MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync (false);
-						}
-					}
+					MonkeyWrench.Scheduler.Scheduler.ReportCompletedRevisionWork (db, rw);
 				}
 
 				transaction.Commit ();
@@ -3084,6 +3075,17 @@ WHERE Revision.lane_id = @lane_id AND ";
 				db.Audit (login, "WebServices.ExecuteScheduler (forcefullupdate: {0})", forcefullupdate);
 
 				MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync (forcefullupdate);
+			}
+		}
+
+		[WebMethod]
+		public void ExecuteSchedulerForRepositories (WebServiceLogin login, string[] repositories)
+		{
+			using (DB db = new DB ()) {
+				VerifyUserInRole (db, login, Roles.Administrator);
+				db.Audit (login, "WebServices.ExecuteSchedulerForRepositories ({0})", repositories == null ? "null" : string.Join (", ", repositories));
+
+				MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync (repositories);
 			}
 		}
 
