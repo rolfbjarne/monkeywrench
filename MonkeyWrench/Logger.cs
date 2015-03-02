@@ -65,10 +65,25 @@ namespace MonkeyWrench
 			if (string.IsNullOrEmpty (Configuration.LogFile)) {
 				Console.Write (message);
 			} else {
-				using (FileStream fs = new FileStream (Configuration.LogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) {
-					using (StreamWriter st = new StreamWriter (fs)) {
-						st.Write (message);
-					}
+				AppendFile (Configuration.LogFile, message);
+			}
+		}
+
+		static void AppendFile (string filename, string message)
+		{
+			var dir = Path.GetDirectoryName (filename);
+			if (!Directory.Exists (dir))
+				Directory.CreateDirectory (dir);
+
+			using (FileStream fs = new FileStream (filename, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite)) {
+				if (fs.Length > Configuration.MaxLogSize) {
+					fs.Position = 0;
+					fs.SetLength (0);
+				} else {
+					fs.Position = fs.Length;
+				}
+				using (StreamWriter st = new StreamWriter (fs)) {
+					st.Write (message);
 				}
 			}
 		}

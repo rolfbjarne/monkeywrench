@@ -24,6 +24,7 @@ namespace MonkeyWrench
 	public static class Configuration
 	{
 		public static string LogFile = Path.Combine (Path.GetTempPath (), "MonkeyWrench.log");
+		public static long MaxLogSize = 1024 * 1024 * 100; // 100 MB
 		public static string DataDirectory = Path.Combine (Path.Combine (Environment.GetFolderPath (Environment.SpecialFolder.Personal), "monkeywrench"), "data");
 		public static string RevDataDirectory;
 		public static string Host;
@@ -178,6 +179,7 @@ namespace MonkeyWrench
 					RevDataDirectory = node.GetNodeValue (RevDataDirectory);
 				Host = xml.SelectSingleNode ("/MonkeyWrench/Configuration/Host").GetNodeValue (Host);
 				LogFile = xml.SelectSingleNode ("/MonkeyWrench/Configuration/LogFile").GetNodeValue (LogFile);
+				MaxLogSize = long.Parse (xml.SelectSingleNode ("/MonkeyWrench/Configuration/MaxLogSize").GetNodeValue (MaxLogSize.ToString ()));
 				ForceFullUpdate = Boolean.Parse (xml.SelectSingleNode ("/MonkeyWrench/Configuration/ForceFullUpdate").GetNodeValue (ForceFullUpdate.ToString ()));
 				WebServiceUrl = xml.SelectSingleNode ("/MonkeyWrench/Configuration/WebServiceUrl").GetNodeValue (WebServiceUrl);
 				WebServicePassword = xml.SelectSingleNode ("/MonkeyWrench/Configuration/WebServicePassword").GetNodeValue (WebServicePassword);
@@ -219,6 +221,7 @@ namespace MonkeyWrench
 					{"revdatadirectory=", v => RevDataDirectory = v},
 					{"host=", v => Host = v},
 					{"logfile=", v => LogFile = v},
+					{"maxlogsize=", v => MaxLogSize = long.Parse (v)},
 					{"forcefullupdate=", v => ForceFullUpdate = Boolean.Parse (v.Trim ())},
 					{"webserviceurl=", v => WebServiceUrl = v},
 					{"webservicepassword=", v => WebServicePassword = v},
