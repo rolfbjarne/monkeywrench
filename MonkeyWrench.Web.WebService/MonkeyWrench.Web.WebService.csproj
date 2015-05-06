@@ -104,7 +104,6 @@
     <Compile Include="Scheduler\Scheduler.cs" />
     <Compile Include="Scheduler\SchedulerBase.cs" />
     <Compile Include="Scheduler\SchedulerGIT.cs" />
-    <Compile Include="Scheduler\SchedulerSVN.cs" />
     <Compile Include="Notifications\Notifications.cs" />
     <Compile Include="Notifications\IrcNotification.cs" />
     <Compile Include="Notifications\EmailNotification.cs" />
