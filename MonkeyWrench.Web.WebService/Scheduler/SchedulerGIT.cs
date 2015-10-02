@@ -35,44 +35,24 @@ namespace MonkeyWrench.Scheduler
 			public string timestamp;
 		}
 
-		HashSet<string> repositories;
+		ScheduledUpdate update;
 
-		public GITUpdater (HashSet<string> repositories, bool forceFullUpdate)
-			: base (forceFullUpdate)
+		public GITUpdater (ScheduledUpdate update)
+			: base (update.FullUpdate)
 		{
-			this.repositories = repositories;
+			this.update = update;
 		}
 
-		public void UpdateRevisionsInDB (DB db, DBLane lane, List<DBHost> hosts, List<DBHostLane> hostlanes, ILogger log)
+		public void UpdateRevisionsInDB (DB db, DBLane lane)
 		{
-			bool update_steps = false;
-			string [] min_revisions;
-			string [] max_revisions;
-			string [] repositories;
-
-			log.Log ("Updating '{0}', ForceFullUpdate: {1}", lane.lane, ForceFullUpdate);
-
-			try {
-				repositories = lane.repository.Split (new char [] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-				min_revisions = splitWithMinimumElements (lane.min_revision, repositories.Length);
-				max_revisions = splitWithMinimumElements (lane.max_revision, repositories.Length);
-				log.Log ("Updating {0} repositories", repositories.Length);
-				for (int i = 0; i < repositories.Length; i++) {
-					UpdateRevisionsInDBInternal (log, db, lane, repositories [i], hosts, hostlanes, min_revisions [i], max_revisions [i]);
-				}
-
-				log.Log ("Updating db for lane '{0}'... [Done], update_steps: {1}", lane.lane, update_steps);
-			} catch (Exception ex) {
-				log.Log ("There was an exception while updating db for lane '{0}': {1}", lane.lane, ex.ToString ());
-			}
-		}
-
-		protected void UpdateRevisionsInDBInternal (ILogger logger, DB db, DBLane lane, string repository, List<DBHost> hosts, List<DBHostLane> hostlanes, string min_revision, string max_revision)
-		{
+			var logger = update.Log;
 			string revision;
 			var used_dates = new List<DateTime> ();
 			List<GitEntry> log;
 			var sql = new StringBuilder ();
+			var repository = update.Repository.Repository;
+			var min_revision = lane.min_revision;
+			var max_revision = lane.max_revision;
 
 			if (string.IsNullOrEmpty (max_revision))
 				max_revision = "remotes/origin/master";
@@ -81,7 +61,14 @@ namespace MonkeyWrench.Scheduler
 
 			log = GetGITLog (logger, lane, repository, min_revision, max_revision);
 
-			if (log == null || log.Count == 0) {
+			if (log == null) {
+				// Something went wrong. Clear out last_revision.
+				db.ExecuteNonQuery ("UPDATE Lane SET last_revision = NULL WHERE id = " + lane.id.ToString () + ";");
+				logger.Log ("Could not get git log; The last_revision field was cleared.");
+				return;
+			}
+
+			if (log.Count == 0) {
 				logger.Log ("Didn't get a git log for '{0}'", repository);
 				return;
 			}
@@ -154,62 +141,11 @@ namespace MonkeyWrench.Scheduler
 					throw;
 				}
 			}
-
 		}
 
-		public Dictionary<string, MemoryLogger> FetchGitRepositories (ILogger log)
+		public void FetchGitRepository ()
 		{
-			var rv = new Dictionary<string, MemoryLogger> ();
-			var watch = new Stopwatch ();
-
-			watch.Start ();
-			log.Log ("Fetching {0} repositories", repositories.Count);
-			int c = 0;
-			foreach (var r in repositories)
-				log.Log (" #{0}: {1}", ++c, r);
-
-			var repos = new System.Collections.Concurrent.ConcurrentQueue<string> (repositories);
-			var threadCount = Math.Min (Configuration.MaxSchedulerThreads, repositories.Count);
-			var evt = new CountdownEvent (threadCount);
-
-			ParameterizedThreadStart cmd = (obj) =>
-			{
-				try {
-					string repo;
-					while (repos.TryDequeue (out repo)) {
-						var rlog = new MemoryLogger ();
-						var mlog = new AggregatedLogger (log, rlog);
-						try {
-							FetchGitRepository (repo, mlog);
-						} catch (Exception ex) {
-							log.Log ("Exception while fetching git repository {0}: {1}", repo, ex);
-						}
-						lock (rv)
-							rv.Add (repo, rlog);
-					}
-				} finally {
-					evt.Signal ();
-				}
-			};
-
-			if (repos.Count == 1) {
-				cmd (null);
-			} else {
-				// Fetch multiple git repositories in parallel.
-				// Don't use the threadpool since that may starve incoming web requests.
-				for (int i = 0; i < threadCount; i++) {
-					var t = new Thread (cmd);
-					t.IsBackground = true;
-					t.Start ();
-				}
-			}
-
-			if (!evt.Wait (TimeSpan.FromMinutes (60))) {
-				log.Log ("Failed to fetch {0} repositories in 60 minutes.", repositories.Count);
-			} else {
-				log.Log ("Fetched {0} repositories in {1} seconds", repositories.Count, watch.Elapsed.TotalSeconds);
-			}
-			return rv;
+			FetchGitRepository (update.Repository.Repository, update.Log);
 		}
 
 		static void FetchGitRepository (string repository, ILogger log)

@@ -3107,8 +3107,6 @@ WHERE Revision.lane_id = @lane_id AND ";
 			using (DB db = new DB ()) {
 				VerifyUserInRole (db, login, Roles.Administrator);
 
-				response.IsSchedulerExecuting = MonkeyWrench.Scheduler.Scheduler.IsExecuting;
-				response.IsDeletionDirectivesExecuting = MonkeyWrench.Database.DeletionDirectives.IsExecuting;
 			}
 
 			return response;

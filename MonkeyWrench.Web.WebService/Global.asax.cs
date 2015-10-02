@@ -18,6 +18,8 @@ using System.Web;
 using System.Web.Security;
 using System.Web.SessionState;
 
+using MonkeyWrench.Scheduler;
+
 namespace MonkeyWrench.WebServices
 {
 	public class Global : System.Web.HttpApplication
@@ -32,6 +34,7 @@ namespace MonkeyWrench.WebServices
 			Configuration.LoadConfiguration (new string [] {});
 			Notifications.Start ();
 			Maintenance.Start ();
+			MonkeyWrench.Scheduler.Scheduler.Start ();
 
 			if (Configuration.AutomaticScheduler)
 				scheduler = new System.Threading.Timer (Schedule, null, 0, Configuration.AutomaticSchedulerInterval * 1000);
@@ -60,6 +63,16 @@ namespace MonkeyWrench.WebServices
 
 		protected void Application_Error (object sender, EventArgs e)
 		{
+			Exception ex = Server.GetLastError ();
+
+			// Unwrap HttpUnhandledException
+			Exception realException = ex.GetBaseException ();
+
+			if (realException is UnauthorizedException) {
+				Server.ClearError ();
+				Response.Clear ();
+				Response.Redirect (Configuration.WebSiteUrl + "/Login.aspx?referrer=" + HttpUtility.UrlEncode (Request.Url.ToString ()));
+			}
 		}
 
 		protected void Session_End (object sender, EventArgs e)

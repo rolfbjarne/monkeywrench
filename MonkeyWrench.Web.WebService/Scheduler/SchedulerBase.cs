@@ -61,32 +61,5 @@ namespace MonkeyWrench.Scheduler
 
 			return result;
 		}
-
-		public static List<DBLane> FilterLanes (List<DBLane> lanes, List<DBHostLane> hostlanes, string logName)
-		{
-			var rv = new List<DBLane> ();
-
-			foreach (var lane in lanes) {
-				if (!lane.enabled) {
-					Logger.LogTo (logName, "Skipping disabled lane '{0}'", lane.lane);
-				}
-				// Skip lanes which aren't configured/enabled on any host completely.
-				var skip_lane = true;
-				for (int i = 0; i < hostlanes.Count; i++) {
-					if (hostlanes [i].lane_id == lane.id && hostlanes [i].enabled) {
-						skip_lane = false;
-						break;
-					}
-				}
-				if (skip_lane) {
-					Logger.LogTo (logName, "Skipping lane {0}, not enabled or configured on any host.", lane.lane);
-					continue;
-				}
-				rv.Add (lane);
-			}
-
-			return rv;
-		}
-
 	}
 }

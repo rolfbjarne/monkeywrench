@@ -649,6 +649,22 @@ namespace MonkeyWrench
 			return result;
 		}
 
+		public List<DBLane> GetLanesForRepository (string repository)
+		{
+			var result = new List<DBLane> ();
+
+			using (IDbCommand cmd = CreateCommand ()) {
+				cmd.CommandText = "SELECT * FROM Lane WHERE repository = @repository ORDER BY lane";
+				DB.CreateParameter (cmd, "repository", repository);
+				using (IDataReader reader = cmd.ExecuteReader ()) {
+					while (reader.Read ()) {
+						result.Add (new DBLane (reader));
+					}
+				}
+			}
+			return result;
+		}
+
 		public List<DBLanefiles> GetAllLaneFiles ()
 		{
 			var result = new List<DBLanefiles> ();

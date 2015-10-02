@@ -35,10 +35,29 @@ function fetchContent (url, targetElement) {
 			if (req.status == 200) {
 				updated = true;
 			} else {
-				targetElement.innerText = "Something went wrong: " + req.status + " => '" + req.statusText + "'\n" + req.responseText;
+				targetElement.innerText = "Something went wrong. Status: " + req.status + " ReadyState: " + req.readyState + " StatusText: " + req.statusText + " ResponseText: " + req.responseText;
 			}
 		}
 	}
+	req.open("GET", url, true);
+	req.send();
+}
+
+function fetchJson (url, statusCallback, completedCallback, errorCallback) {
+	var req = new XMLHttpRequest ();
+
+	statusCallback ("Request in progress... (" + url + ")");
+
+	req.onreadystatechange = function() {
+		if (req.readyState == 4) {
+			if (req.status == 200) {
+				completedCallback (req.response);
+			} else {
+				errorCallback (req);
+			}
+		}
+	}
+//	req.responseType = "json";
 	req.open("GET", url, true);
 	req.send();
 }

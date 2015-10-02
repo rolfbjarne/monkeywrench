@@ -77,7 +77,9 @@
     <Content Include="WebServices.asmx" />
     <Content Include="Notification.ashx" />
     <Content Include="packages.config" />
-    <Content Include="ScheduleLane.aspx" />
+    <Content Include="Scheduler.aspx" />
+    <Content Include="Scheduler.js" />
+    <Content Include="Schedule.aspx" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Authentication.cs" />
@@ -108,8 +110,19 @@
     <Compile Include="Notifications\IrcNotification.cs" />
     <Compile Include="Notifications\EmailNotification.cs" />
     <Compile Include="Notifications\GitHubNotification.cs" />
-    <Compile Include="ScheduleLane.aspx.cs">
-      <DependentUpon>ScheduleLane.aspx</DependentUpon>
+    <Compile Include="Scheduler.aspx.cs">
+      <DependentUpon>Scheduler.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Scheduler\ScheduledRepository.cs" />
+    <Compile Include="Scheduler\ScheduledLane.cs" />
+    <Compile Include="Scheduler\ScheduledState.cs" />
+    <Compile Include="Scheduler\ScheduledUpdate.cs" />
+    <Compile Include="Scheduler.aspx.designer.cs">
+      <DependentUpon>Scheduler.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="Schedule.aspx.cs">
+      <DependentUpon>Schedule.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
     </Compile>
   </ItemGroup>

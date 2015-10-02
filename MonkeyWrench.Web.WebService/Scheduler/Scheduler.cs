@@ -12,6 +12,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
@@ -28,27 +30,19 @@ namespace MonkeyWrench.Scheduler
 {
 	public static class Scheduler
 	{
-		private static bool is_executing;
+		const string logName = "scheduler.log";
+		static object lock_obj = new object ();
 		static bool queued_forced = false;
 		static HashSet<string> queued_repositories = new HashSet<string> ();
 		static object queue_lock = new object ();
+		static ScheduledState state = new ScheduledState ();
+		static SchedulerQueue queue = new SchedulerQueue ();
+		static Semaphore semaphore;
 
-		public static bool IsExecuting
-		{
-			get { return is_executing; }
-		}
-	
-		public static void Main (string [] args)
-		{
-			ProcessHelper.Exit (Main2 (args)); // Work around #499702
-		}
-
-		public static int Main2 (string [] args)
-		{
-			if (!Configuration.LoadConfiguration (args))
-				return 1;
-
-			return ExecuteScheduler (false) ? 0 : 1;
+		public static SchedulerQueue Queue {
+			get {
+				return queue;
+			}
 		}
 
 		public static void ExecuteSchedulerAsync (bool forcefullupdate)
@@ -62,138 +56,198 @@ namespace MonkeyWrench.Scheduler
 		public static void ExecuteSchedulerAsync (string[] repositories)
 		{
 			Async.Execute ((v) => {
-				ExecuteScheduler (null, false, repositories, null);
+				Enqueue (null, false, repositories, null);
 			});
 		}
 
-		public static void ExecuteSchedulerSync (ILogger logger)
+		static void WaitForAll (IEnumerable<ScheduledUpdate> updates)
 		{
-			ExecuteScheduler (logger, false, null, null, true);
+			foreach (var update in updates)
+				update.WaitForCompletion ();
 		}
 
-		public static void ExecuteSchedulerSync (int lane_id, ILogger logger)
+		public static void ExecuteSchedulerSync (ILogger logger, bool forcefullupdate)
 		{
-			ExecuteScheduler (logger, false, null, new int [] { lane_id }, false);
+			WaitForAll (Enqueue (logger, forcefullupdate, null, null));
 		}
 
-		public static bool ExecuteScheduler (bool forcefullupdate)
+		public static void ExecuteSchedulerSync (ILogger logger, bool forcefullupdate, int lane_id)
 		{
-			return ExecuteScheduler (null, forcefullupdate, null, null);
+			WaitForAll (Enqueue (logger, forcefullupdate, null, new int [] { lane_id }));
 		}
 
-		public static bool ExecuteScheduler (ILogger extra_log, bool forcefullupdate, string[] repos, int[] filter_to_lanes, bool queue_if_busy = true)
+		public static void ExecuteSchedulerSync (ILogger logger, bool forcefullupdate, string repo)
+		{
+			WaitForAll (Enqueue (logger, forcefullupdate, new string[] { repo }, null));
+		}
+
+		public static void ExecuteScheduler (bool forcefullupdate)
+		{
+			Enqueue (null, forcefullupdate, null, null);
+		}
+
+		static void ProcessUpdate (ScheduledUpdate update)
 		{
 			Stopwatch watch = new Stopwatch ();
-			Lock scheduler_lock = null;
 			List<DBLane> lanes;
-
 			List<DBHost> hosts;
 			List<DBHostLane> hostlanes;
-			const string logName = "scheduler.log";
 
-			ILogger log = new NamedLogger (logName);
-			if (extra_log != null) {
-				log = new AggregatedLogger (new ILogger [] { extra_log, log });
-			}
-			
 			try {
-				scheduler_lock = Lock.Create ("MonkeyWrench.Scheduler");
-				if (scheduler_lock == null) {
-					log.Log ("Could not aquire scheduler lock.");
-					if (queue_if_busy) {
-						lock (queued_repositories) {
-							if (repos != null && repos.Length > 0) {
-								foreach (var r in repos)
-									queued_repositories.Add (r);
-								log.Log ("Queued {0} repositories for later scheduling: {1}", repos.Length, string.Join (", ", repos));
-							}
-							queued_forced |= forcefullupdate;
-						}
-					}
-					return false;
-				}
-
-				log.Log ("Scheduler lock aquired successfully.");
-				
-				is_executing = true;
 				watch.Start ();
 
 				using (DB db = new DB (true)) {
-					lanes = db.GetAllLanes ();
+					lanes = db.GetLanesForRepository (update.Repository.Repository);
+
+					if (lanes.Count == 0) {
+						update.Log.Log ("There are no lanes for the repository '{0}'", update.Repository);
+						return;
+					}
+
 					hosts = db.GetHosts ();
 					hostlanes = db.GetAllHostLanes ();
 
-					var filtered_lanes = SchedulerBase.FilterLanes (lanes, hostlanes, logName);
-
-					if (filter_to_lanes != null && filter_to_lanes.Length > 0) {
-						filtered_lanes.RemoveAll ((v) => !filter_to_lanes.Contains (v.id));
-					}
-
-					log.Log ("Scheduler will process {0} lanes", filtered_lanes.Count);
-
-					// Collect the repositories to fetch
-					var repositories = new HashSet<string> ();
-					var lanes_for_repository = new Dictionary<string, List<DBLane>> ();
-					foreach (var lane in filtered_lanes) {
-						foreach (var repo in lane.repository.Split (new char [] { ',' }, StringSplitOptions.RemoveEmptyEntries)) {
-							repositories.Add (repo);
-							List<DBLane> l;
-							if (!lanes_for_repository.TryGetValue (repo, out l)) {
-								l = new List<DBLane> ();
-								lanes_for_repository [repo] = l;
-							}
-							l.Add (lane);
+					var filtered_lanes = new List<DBLane> ();
+					foreach (var lane in lanes) {
+						if (!lane.enabled) {
+							update.Log.Log ("Skipping disabled lane '{0}'", lane.lane);
+							continue;
 						}
-					}
-					if (!forcefullupdate && repos != null && repos.Length > 0) {
-						var input_repositories = new HashSet<string> ();
-						foreach (var repo in repos)
-							input_repositories.Add (repo);
-						repositories.IntersectWith (input_repositories); // only process those that are both in filtered lanes, and in the input list.
-					}
-					// Fetch all the repositores we care about.
-					var updater = new GITUpdater (repositories, forcefullupdate);
-					var logs = updater.FetchGitRepositories (log);
-					foreach (var kvp in logs) {
-						foreach (DBLane lane in lanes_for_repository [kvp.Key]) {
-							log.LogToRaw (Configuration.GetLogFileForLane (lane.id), kvp.Value.ToString ());
+
+						if (!hostlanes.Exists ((hl) => hl.lane_id == lane.id && hl.enabled)) {
+							update.Log.Log ("Skipping lane {0}, not enabled or configured on any host.", lane.lane);
+							continue;
 						}
+
+						if (update.FilterToLanes != null && !update.FilterToLanes.Contains (lane.id)) {
+							update.Log.Log ("Skipping lane {0}, it's not selected for update.", lane.lane);
+							continue;
+						}
+
+						filtered_lanes.Add (lane);
 					}
-					log.Log ("Fetching revisions in {0} lanes", filtered_lanes.Count);
+
+					if (filtered_lanes.Count == 0) {
+						update.Log.Log ("There are no lanes left for the repository '{0}'", update.Repository);
+						return;
+					}
+
+					update.Log.Log ("Scheduler will process {0} lanes: {1}", filtered_lanes.Count, string.Join (", ", filtered_lanes.ToArray ().Select ((l) => l.lane)));
+
+					var updater = new GITUpdater (update);
+					updater.FetchGitRepository ();
+
 					foreach (DBLane lane in filtered_lanes)
-						updater.UpdateRevisionsInDB (db, lane, hosts, hostlanes, log);
+						updater.UpdateRevisionsInDB (db, lane);
 
-					AddRevisionWork (db, log);
-					AddWork (db, hosts, filtered_lanes, lanes, hostlanes, log);
-					if (forcefullupdate)
-						CheckDependencies (db, hosts, lanes, hostlanes, log);
+					AddRevisionWork (db, update.Log);
+					AddWork (db, hosts, filtered_lanes, lanes, hostlanes, update.Log);
+					if (update.FullUpdate)
+						CheckDependencies (db, hosts, lanes, hostlanes, update.Log);
 				}
 
-				log.Log ("Scheduler finished successfully in {0} seconds.", watch.Elapsed.TotalSeconds);
-
-				return true;
+				update.Log.Log ("Scheduler finished successfully in {0} seconds.", watch.Elapsed.TotalSeconds);
 			} catch (Exception ex) {
-				log.Log ("An exception occurred in the scheduler: {0}", ex.ToString ());
-				return false;
+				update.Log.Log ("An exception occurred in the scheduler: {0}", ex.ToString ());
+			}
+		}
+
+		static void Schedule (object update_obj)
+		{
+			ScheduledUpdate update = (ScheduledUpdate) update_obj;
+			try {
+				ProcessUpdate (update);
+			} catch (Exception ex) {
+				Logger.LogTo (logName, "Scheduler exception: {0}", ex);
+			} finally {
+				queue.CompleteWork (update);
+			}
+		}
+
+		public static void Start ()
+		{
+			var t = new Thread (ScheduleLoop);
+			t.IsBackground = true;
+			t.Start ();
+		}
+
+		static ScheduledUpdate [] Enqueue (ILogger extra_log, bool forcefullupdate, string[] repos, int[] filter_to_lanes)
+		{
+			IEnumerable<string> reps = repos;
+
+			if (reps == null) {
+				var repositories = new List<string> ();
+				using (var db = new DB (true)) {
+					using (var cmd = db.CreateCommand ()) {
+						cmd.CommandText = "SELECT DISTINCT repository FROM Lane WHERE enabled = TRUE;";
+						using (var reader = cmd.ExecuteReader ()) {
+							while (reader.Read ()) {
+								repositories.Add (reader.GetString (0));	
+							}
+						}
+					}
+				}
+				reps = repositories;
+			}
+
+			var lst = new List<ScheduledUpdate> ();
+			foreach (var repo in reps) {
+				var update = new ScheduledUpdate (repo, forcefullupdate, filter_to_lanes, extra_log);
+				lst.Add (update);
+				AddUpdate (update);
+			}
+
+			Logger.LogTo (logName, "Enqueued {0} updates (full: {1}, repositories: {2} filter_to_lanes: {3})",
+				lst.Count,
+				forcefullupdate,
+				string.Join (", ", reps),
+				filter_to_lanes == null ? "N/A" : string.Join (", ", filter_to_lanes.Select (lane_id => lane_id.ToString ()).ToArray ()));
+
+			return lst.ToArray ();
+		}
+
+		static void AddUpdate (ScheduledUpdate update)
+		{
+			queue.Enqueue (update);
+		}
+
+		static void ScheduleLoop ()
+		{
+			Lock scheduler_lock = null;
+
+			try {
+				while ((scheduler_lock = MonkeyWrench.Lock.Create ("MonkeyWrench.Scheduler")) == null) {
+					Logger.LogTo (logName, "Could not aquire lock 'MonkeyWrench.Scheduler'. Will try again in 15 seconds.");
+					Thread.Sleep (TimeSpan.FromSeconds (15));
+				}
+
+				// When wrench launches, there will typically be a horde of
+				// bots trying to connect, so delay the scheduler for a minute
+				// so that we can deal with the bots first.
+				Logger.LogTo (logName, "Scheduler started with max {0} threads. Waiting 1 minute for wrench to launch.", Configuration.MaxSchedulerThreads);
+//				Thread.Sleep (TimeSpan.FromMinutes (1));
+
+				semaphore = new Semaphore (Configuration.MaxSchedulerThreads, Configuration.MaxSchedulerThreads);
+
+				Logger.LogTo (logName, "Scheduler startup wait complete. Will now process updates.");
+				while (true) {
+					try {
+						ScheduledUpdate update = queue.FetchWork ();
+						try {
+							semaphore.WaitOne ();
+							var t = new Thread (Schedule);
+							t.IsBackground = true;
+							t.Start (update);
+						} finally {
+							semaphore.Release ();
+						}
+					} catch (Exception ex) {
+						Logger.LogTo (logName, "Exception in scheduler thread: {0}", ex);
+					}
+				}
 			} finally {
 				if (scheduler_lock != null)
 					scheduler_lock.Unlock ();
-				if (queue_if_busy) {
-					HashSet<string> t_repositories;
-					bool t_full;
-					lock (queue_lock) {
-						t_repositories = queued_repositories;
-						t_full = queued_forced;
-						queued_repositories = new HashSet<string> ();
-						queued_forced = false;
-					}
-					is_executing = false;
-					if (t_full || t_repositories.Count > 0) {
-						Async.Execute ((v) => {
-							ExecuteScheduler (extra_log, t_full, t_repositories.ToArray (), filter_to_lanes, queue_if_busy);
-						});
-					}
-				}
 			}
 		}
 
@@ -204,7 +258,7 @@ namespace MonkeyWrench.Scheduler
 		/// <param name="lane"></param>
 		/// <param name="host"></param>
 		/// <returns></returns>
-		public static void AddRevisionWork (DB db, ILogger log)
+		static void AddRevisionWork (DB db, ILogger log)
 		{
 			var stopwatch = new Stopwatch ();
 			stopwatch.Start ();

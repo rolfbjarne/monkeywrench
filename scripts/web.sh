@@ -14,8 +14,8 @@ ROOT=$PWD/..
 
 export MONO_TLS_SESSION_CACHE_TIMEOUT=0
 
-( sleep 1 && curl http://localhost:8123/index.aspx >/dev/null ) &
-
+#( sleep 1 && curl http://localhost:8123/index.aspx >/dev/null ) &
+ulimit -n 1024
 MONO_OPTIONS="--debug $MONO_OPTIONS" xsp4 --port 8123 --root $ROOT --applications /WebServices:$ROOT/MonkeyWrench.Web.WebService/,/:$ROOT/MonkeyWrench.Web.UI --nonstop
 
 popd

@@ -1,12 +1,11 @@
 ﻿using System;
 
-namespace MonkeyWrench.Web.WebService
+namespace MonkeyWrench.Scheduler
 {
 	public class ScheduledLane
 	{
-		public ScheduledLane ()
-		{
-		}
+		public string Lane;
+		public string State;
 	}
 }
 

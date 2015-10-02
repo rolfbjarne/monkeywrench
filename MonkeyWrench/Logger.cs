@@ -78,11 +78,18 @@ namespace MonkeyWrench
 			Logger.LogToRaw (name, message);
 			Logger.LogToRaw (logName, message);
 		}
+
+		public static string SanitizeLogName (string logName)
+		{
+			foreach (var ch in Path.GetInvalidFileNameChars ())
+				logName = logName.Replace (ch, '_');
+			return logName;
+		}
 	}
 
 	public class AggregatedLogger : ILogger
 	{
-		IEnumerable<ILogger> logs;
+		List<ILogger> logs = new List<ILogger> ();
 
 		public AggregatedLogger (params ILogger[] logs)
 			: this ((IEnumerable<ILogger>) logs)
@@ -91,31 +98,46 @@ namespace MonkeyWrench
 
 		public AggregatedLogger (IEnumerable<ILogger> logs)
 		{
-			this.logs = logs;
+			this.logs.AddRange (logs);
+		}
+
+		public void AddLogger (ILogger log)
+		{
+			lock (logs)
+				logs.Add (log);
+
 		}
 
 		public void Log (string format, params object[] args)
 		{
-			foreach (var l in logs)
-				l.Log (format, args);
+			lock (logs) {
+				foreach (var l in logs)
+					l.Log (format, args);
+			}
 		}
 
 		public void LogRaw (string message)
 		{
-			foreach (var l in logs)
-				l.LogRaw (message);
+			lock (logs) {
+				foreach (var l in logs)
+					l.LogRaw (message);
+			}
 		}
 
 		public void LogTo (string logName, string format, params object[] args)
 		{
-			foreach (var l in logs)
-				l.LogTo (logName, format, args);
+			lock (logs) {
+				foreach (var l in logs)
+					l.LogTo (logName, format, args);
+			}
 		}
 
 		public void LogToRaw (string logName, string message)
 		{
-			foreach (var l in logs)
-				l.LogToRaw (logName, message);
+			lock (logs) {
+				foreach (var l in logs)
+					l.LogToRaw (logName, message);
+			}
 		}
 	}
 

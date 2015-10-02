@@ -29,55 +29,111 @@ using MonkeyWrench.Scheduler;
 
 namespace MonkeyWrench.WebServices
 {
-	public partial class ScheduleLane : System.Web.UI.Page
+	public partial class Schedule : System.Web.UI.Page
 	{
 		protected void Page_Load (object sender, EventArgs e)
 		{
-			int lane_id;
+			try {
+			bool stream_log = true;
+			string repo = null;
+			int? lane_id = null;
+			bool forcefullupdate = false;
 
-			if (Request ["lane_id"] == "all") {
-				lane_id = int.MaxValue;
-			} else if (!int.TryParse (Request ["lane_id"], out lane_id)) {
-				Response.Write (string.Format ("Invalid lane id: {0}", Request ["lane_id"]));
+			Logger.Log ("Requesting stuff?");
+			repo = Request ["repo"];
+			if (!string.IsNullOrEmpty (Request ["lane_id"])) {
+				int tmp;
+				if (Request ["lane_id"] == "all") {
+					lane_id = int.MaxValue;
+				} else if (!int.TryParse (Request ["lane_id"], out tmp)) {
+					Response.Write (string.Format ("Invalid lane id: {0}", Request ["lane_id"]));
+					return;
+				} else {
+					lane_id = tmp;
+				}
+			}
+			if (!string.IsNullOrEmpty (Request ["stream_log"])) {
+				if (!bool.TryParse (Request ["stream_log"], out stream_log)) {
+					Response.Write (string.Format ("Invalid value '{0}' for parameter 'stream_log'", Request ["stream_log"]));
+					return;
+				}
+			}
+
+			if (!string.IsNullOrEmpty (Request ["forcefullupdate"])) {
+				if (!bool.TryParse (Request ["forcefullupdate"], out forcefullupdate)) {
+					Response.Write (string.Format ("Invalid value '{0}' for parameter 'forcefullupdate'", Request ["forcefullupdate"]));
+					return;
+				}
+			}
+
+			if (string.IsNullOrEmpty (repo) && !lane_id.HasValue) {
+				Logger.Log ("Requesting nothing");
+				Response.Write ("Either 'repo' or 'lane_id' must be given.");
 				return;
 			}
 
-			Response.ContentType = "application/octet-stream";
 
-			var logger = new ResponseLogger (Response);
+			ResponseLogger logger = null;
+
+			if (stream_log) {
+				Response.ContentType = "application/octet-stream";
+				logger = new ResponseLogger (Response);
+			}
+			Logger.Log ("Requesting stuff repo: {0}", repo);
 			try {
 				using (DB db = new DB ()) {
 					var login = Authentication.CreateLogin (Request);
 					Authentication.VerifyUserInRole (Context, db, login, Roles.Administrator, true);
 
-					var evt = new ManualResetEvent (false);
-					// Run the scheduler in a separate thread, so that ASP.NEt doesn't terminate
-					// it if the request times out.
-					ThreadPool.QueueUserWorkItem ((v) => {
-						try {
-							if (lane_id == int.MaxValue) {
-								MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerSync (logger);
-							} else {
-								MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerSync (lane_id, logger);
+					if (stream_log) {
+						var evt = new ManualResetEvent (false);
+						// Run the scheduler in a separate thread, so that ASP.NET doesn't terminate
+						// it if the request times out.
+						ThreadPool.QueueUserWorkItem ((v) => {
+							try {
+								if (lane_id.HasValue) {
+									if (lane_id.Value == int.MaxValue) {
+										MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerSync (logger, forcefullupdate);
+									} else {
+										MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerSync (logger, forcefullupdate, lane_id.Value);
+									}
+								} else if (!string.IsNullOrEmpty (repo)) {
+									MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerSync (logger, forcefullupdate, repo);
+								}
+							} catch (ThreadAbortException) {
+							} catch (Exception ex) {
+								logger.Log ("Exception occurred: {0}", ex);
+								Logger.Log ("Exception occurred: {0}", ex);
+							} finally {
+								evt.Set ();
 							}
-						} catch (ThreadAbortException) {
-						} catch (Exception ex) {
-							logger.Log ("Exception occurred: {0}", ex);
-							Logger.Log ("Exception occurred: {0}", ex);
-						} finally {
-							evt.Set ();
+						});
+						evt.WaitOne ();
+					} else {
+						if (lane_id.HasValue) {
+							if (lane_id.Value == int.MaxValue) {
+//								MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync ();
+							} else {
+//								MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync (lane_id.Value);
+							}
+						} else if (string.IsNullOrEmpty (repo)) {
+							MonkeyWrench.Scheduler.Scheduler.ExecuteSchedulerAsync (new string [] { repo });
 						}
-					});
-					evt.WaitOne ();
+						Response.Write ("OK");
+					}
 				}
 			} catch (Exception ex) {
-				logger.ClearResponse ();
+				if (logger != null)
+					logger.ClearResponse ();
 				Response.Write (string.Format ("An exception occurred: {0}\n", ex.Message));
 				Response.Flush ();
 				HttpContext.Current.ApplicationInstance.CompleteRequest ();
 			} finally {
-				logger.ClearResponse ();
+				if (logger != null)
+					logger.ClearResponse ();
 			}
+		} catch (Exception ex) {
+			Logger.Log ("ops " + ex.ToString ());
 		}
 	}
 
@@ -136,5 +192,6 @@ namespace MonkeyWrench.WebServices
 		{
 			LogRaw (message);
 		}
+	}
 	}
 }
